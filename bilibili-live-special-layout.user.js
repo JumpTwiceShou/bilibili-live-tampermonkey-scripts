@@ -497,7 +497,7 @@ html.blive-special-layout #blf-special-sidebar-host .three-anchor {
   box-sizing: border-box !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .one-anchor {
-  width: 77px !important;
+  width: 72px !important;
   height: 101.97px !important;
   padding: 8px 8px 0 8px !important;
   text-decoration: none !important;
