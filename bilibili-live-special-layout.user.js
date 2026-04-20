@@ -1027,6 +1027,8 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     const listRoot = host.querySelector('[data-blf-role="list"]');
     const subtitle = host.querySelector('[data-blf-role="subtitle"]');
     const titleRoot = host.querySelector('.follow-text');
+    let sidebarBoundFrame = null;
+    let sidebarBoundFrameDoc = null;
 
     let popupOpen = false;
     let loading = false;
@@ -1045,6 +1047,37 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       popupOpen = open;
       popup.classList.toggle('is-open', open);
       popup.style.display = open ? 'block' : 'none';
+    }
+
+    function closePopupFromEmbeddedArea() {
+      if (popupOpen) {
+        setPopup(false);
+      }
+    }
+
+    function rebindEmbeddedDismissTarget() {
+      const frame = getBlancFrame(doc);
+      if (frame !== sidebarBoundFrame) {
+        if (sidebarBoundFrame) {
+          sidebarBoundFrame.removeEventListener('load', rebindEmbeddedDismissTarget);
+        }
+        sidebarBoundFrame = frame;
+        sidebarBoundFrameDoc = null;
+        if (sidebarBoundFrame) {
+          sidebarBoundFrame.addEventListener('load', rebindEmbeddedDismissTarget);
+        }
+      }
+
+      const frameDoc = getBlancFrameDocument(doc);
+      if (!frameDoc || frameDoc === sidebarBoundFrameDoc) {
+        return;
+      }
+
+      if (sidebarBoundFrameDoc) {
+        sidebarBoundFrameDoc.removeEventListener('pointerdown', closePopupFromEmbeddedArea, true);
+      }
+      sidebarBoundFrameDoc = frameDoc;
+      sidebarBoundFrameDoc.addEventListener('pointerdown', closePopupFromEmbeddedArea, true);
     }
 
     async function loadFollow(force) {
@@ -1104,6 +1137,16 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       }
     });
 
+    new MutationObserver(() => {
+      rebindEmbeddedDismissTarget();
+    }).observe(doc.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src']
+    });
+
+    rebindEmbeddedDismissTarget();
     window.addEventListener('scroll', scheduleTop, { passive: true });
     scheduleTop();
     loadFollow(false);
