@@ -44,10 +44,13 @@
   const LEGACY_STYLE_IDS = ['blf-special-style', 'tm-bili-special-layout-large-player-style'];
   const LEGACY_CLASSES = ['blf-special-page', 'tm-bili-special-layout-normal-room-like', 'tm-bili-special-layout-player-host', 'tm-bili-special-layout-player-root'];
   const FRAME_STYLE_ID = 'blive-special-layout-frame-style';
+  const WEB_MODE_FALLBACK_POLL_MS = 1200;
   let resizeObserver = null;
   let rafId = 0;
   let webModePollTimer = 0;
   let trackedBlancFrame = null;
+  let trackedBlancFrameDoc = null;
+  let trackedBlancFrameObserver = null;
   let specialWebFullscreenActive = false;
 
   const urlMode = new URLSearchParams(window.location.search).get('blf_mode');
@@ -307,6 +310,59 @@
     }
 
     return active;
+  }
+
+  function cleanupTrackedFrameWatchers() {
+    if (trackedBlancFrameDoc) {
+      trackedBlancFrameDoc.removeEventListener('click', handleTrackedFrameInteraction, true);
+      trackedBlancFrameDoc.removeEventListener('dblclick', handleTrackedFrameInteraction, true);
+      trackedBlancFrameDoc = null;
+    }
+    if (trackedBlancFrameObserver) {
+      trackedBlancFrameObserver.disconnect();
+      trackedBlancFrameObserver = null;
+    }
+  }
+
+  function handleTrackedFrameInteraction(event) {
+    const target = event && event.target;
+    if (!target || typeof target.closest !== 'function') {
+      scheduleApplyLayout(document);
+      return;
+    }
+    if (
+      target.closest('[aria-label*="网页"]') ||
+      target.closest('[class*="fullscreen"]') ||
+      target.closest('[class*="screen"]') ||
+      target.closest('.web-player-controller-wrap') ||
+      target.closest('.web-player-icon-roomStatus') ||
+      target.closest('.web-player-controller')
+    ) {
+      scheduleApplyLayout(document);
+      return;
+    }
+    scheduleApplyLayout(document);
+  }
+
+  function bindTrackedFrameWatchers(doc) {
+    const frameDoc = getBlancFrameDocument(doc);
+    if (!frameDoc || frameDoc === trackedBlancFrameDoc) {
+      return;
+    }
+
+    cleanupTrackedFrameWatchers();
+    trackedBlancFrameDoc = frameDoc;
+    trackedBlancFrameDoc.addEventListener('click', handleTrackedFrameInteraction, true);
+    trackedBlancFrameDoc.addEventListener('dblclick', handleTrackedFrameInteraction, true);
+    trackedBlancFrameObserver = new MutationObserver(() => {
+      scheduleApplyLayout(doc);
+    });
+    trackedBlancFrameObserver.observe(frameDoc.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
   }
 
   function isSpecialEmbeddedBlanc() {
@@ -1180,13 +1236,16 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     const bindTrackedFrame = () => {
       const frame = getBlancFrame(doc);
       if (!frame || frame === trackedBlancFrame) {
+        bindTrackedFrameWatchers(doc);
         return;
       }
       if (trackedBlancFrame) {
         trackedBlancFrame.removeEventListener('load', onFrameLoad);
       }
+      cleanupTrackedFrameWatchers();
       trackedBlancFrame = frame;
       trackedBlancFrame.addEventListener('load', onFrameLoad);
+      bindTrackedFrameWatchers(doc);
     };
 
     bindTrackedFrame();
@@ -1195,7 +1254,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       if (isEmbeddedWebFullscreenActive(doc) !== specialWebFullscreenActive) {
         scheduleApplyLayout(doc);
       }
-    }, 350);
+    }, WEB_MODE_FALLBACK_POLL_MS);
   }
 
   function ensureDefaultCollapsed(doc) {
