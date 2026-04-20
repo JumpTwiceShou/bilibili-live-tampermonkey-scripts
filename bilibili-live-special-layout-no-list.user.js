@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili Live Special Layout (No List)
 // @namespace    https://live.bilibili.com/
-// @version      2.1.6-no-list
+// @version      2.1.7-no-list
 // @description  Special-page only, fixed no-list mode + native-like sidebar.
 // @match        https://live.bilibili.com/*
 // @run-at       document-idle
@@ -46,6 +46,9 @@
   const FRAME_STYLE_ID = 'blive-special-layout-frame-style';
   let resizeObserver = null;
   let rafId = 0;
+  let webModePollTimer = 0;
+  let trackedBlancFrame = null;
+  let specialWebFullscreenActive = false;
 
   const urlMode = new URLSearchParams(window.location.search).get('blf_mode');
   const storedMode = (window.localStorage.getItem(MODE_KEY) || DEFAULT_MODE).toLowerCase();
@@ -179,6 +182,131 @@
       el.style.removeProperty('transform');
       el.style.removeProperty('transform-origin');
     });
+  }
+
+  function getBlancFrame(doc) {
+    return Array.from(doc.querySelectorAll('iframe'))
+      .find((frame) => (frame.src || '').includes('/blanc/')) || null;
+  }
+
+  function getBlancFrameWindow(doc) {
+    const frame = getBlancFrame(doc);
+    if (!frame) {
+      return null;
+    }
+    try {
+      return frame.contentWindow || null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function getBlancFrameDocument(doc) {
+    const frameWindow = getBlancFrameWindow(doc);
+    if (!frameWindow) {
+      return null;
+    }
+    try {
+      return frameWindow.document || null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function getEmbeddedCtrlUi(doc) {
+    const frameWindow = getBlancFrameWindow(doc);
+    if (!frameWindow) {
+      return null;
+    }
+    const playerInstance =
+      (frameWindow.EmbedPlayer && frameWindow.EmbedPlayer.instance) ||
+      frameWindow.__PLAYER_GLOBAL_INSTANCE__ ||
+      null;
+    if (!playerInstance || !playerInstance.ctrl || typeof playerInstance.ctrl.getCtrlUI !== 'function') {
+      return null;
+    }
+    try {
+      return playerInstance.ctrl.getCtrlUI() || null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function hasWebFullscreenToken(value) {
+    return /(web[\s_-]*full|full[\s_-]*web)/i.test(value || '');
+  }
+
+  function isEmbeddedWebFullscreenActive(doc) {
+    const ctrlUi = getEmbeddedCtrlUi(doc);
+    if (ctrlUi && ctrlUi.webFullScreenStatus === true) {
+      return true;
+    }
+
+    const frameDoc = getBlancFrameDocument(doc);
+    if (!frameDoc) {
+      return false;
+    }
+
+    const classNames = [
+      frameDoc.documentElement ? frameDoc.documentElement.className : '',
+      frameDoc.body ? frameDoc.body.className : ''
+    ].filter(Boolean).join(' ');
+    if (hasWebFullscreenToken(classNames)) {
+      return true;
+    }
+
+    const frameWindow = frameDoc.defaultView;
+    const viewportWidth = frameWindow ? frameWindow.innerWidth : 0;
+    const viewportHeight = frameWindow ? frameWindow.innerHeight : 0;
+    const candidates = [
+      frameDoc.querySelector('#fullscreen-container'),
+      frameDoc.querySelector('.player-section'),
+      frameDoc.querySelector('#live-player')
+    ].filter(Boolean);
+
+    return candidates.some((el) => {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      if (style.position === 'fixed' && rect.width >= viewportWidth * 0.7 && rect.height >= viewportHeight * 0.6) {
+        return true;
+      }
+      return el.id === 'fullscreen-container'
+        && rect.left <= 2
+        && rect.top <= 2
+        && rect.width >= viewportWidth * 0.95
+        && rect.height >= viewportHeight * 0.75;
+    });
+  }
+
+  function setSidebarHidden(doc, hidden) {
+    const sidebarHost = doc.getElementById('blf-special-sidebar-host');
+    if (!sidebarHost) {
+      return;
+    }
+    if (hidden) {
+      sidebarHost.style.setProperty('display', 'none', 'important');
+      return;
+    }
+    sidebarHost.style.removeProperty('display');
+  }
+
+  function syncEmbeddedWebFullscreenState(doc, playerRoot) {
+    const active = isEmbeddedWebFullscreenActive(doc);
+    specialWebFullscreenActive = active;
+
+    const style = doc.getElementById(STYLE_ID);
+    if (style) {
+      style.disabled = active;
+    }
+
+    doc.documentElement.classList.toggle('blive-special-webfs', active);
+    setSidebarHidden(doc, active);
+
+    if (active) {
+      clearLayoutInlineSizes(playerRoot || doc.querySelector('.live-non-revenue-player'));
+    }
+
+    return active;
   }
 
   function isSpecialEmbeddedBlanc() {
@@ -931,6 +1059,10 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return false;
     }
 
+    if (syncEmbeddedWebFullscreenState(doc, playerRoot)) {
+      return false;
+    }
+
     const host = playerRoot.parentElement;
     const videoArea =
       playerRoot.querySelector('.live-player-bg') ||
@@ -951,9 +1083,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return false;
     }
 
-    const targetWidth = Math.max(
-      baseVideoWidth,
-      Math.min(window.innerWidth - VIEWPORT_GUTTER, MAX_PLAYER_WIDTH)
+    const targetWidth = Math.min(
+      MAX_PLAYER_WIDTH,
+      Math.max(baseVideoWidth, window.innerWidth - VIEWPORT_GUTTER)
     );
     const scale = targetWidth / baseVideoWidth;
     const targetHeight = Math.round(baseVideoHeight * scale);
@@ -1039,6 +1171,33 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     resizeObserver.observe(playerRoot);
   }
 
+  function watchEmbeddedWebFullscreen(doc) {
+    if (webModePollTimer) {
+      return;
+    }
+
+    const onFrameLoad = () => scheduleApplyLayout(doc);
+    const bindTrackedFrame = () => {
+      const frame = getBlancFrame(doc);
+      if (!frame || frame === trackedBlancFrame) {
+        return;
+      }
+      if (trackedBlancFrame) {
+        trackedBlancFrame.removeEventListener('load', onFrameLoad);
+      }
+      trackedBlancFrame = frame;
+      trackedBlancFrame.addEventListener('load', onFrameLoad);
+    };
+
+    bindTrackedFrame();
+    webModePollTimer = window.setInterval(() => {
+      bindTrackedFrame();
+      if (isEmbeddedWebFullscreenActive(doc) !== specialWebFullscreenActive) {
+        scheduleApplyLayout(doc);
+      }
+    }, 350);
+  }
+
   function ensureDefaultCollapsed(doc) {
     if (doc.documentElement.dataset.blfInitialCollapseDone === '1') {
       return true;
@@ -1116,11 +1275,12 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     clearLayoutInlineSizes(doc.querySelector('.live-non-revenue-player'));
     doc.documentElement.classList.add('blive-special-layout');
     doc.documentElement.classList.toggle('blf-no-list', specialMode === 'no-list');
-    doc.documentElement.dataset.bliveSpecialLayoutVersion = '2.1.6-no-list';
+    doc.documentElement.dataset.bliveSpecialLayoutVersion = '2.1.7-no-list';
     ensureOfficialSidebarCss(doc);
     ensureStyle(doc);
     setupSidebar(doc);
     watchFullscreenState(doc);
+    watchEmbeddedWebFullscreen(doc);
     scheduleApplyLayout(doc);
     watchPlayerResize(doc);
     if (!doc.documentElement.dataset.bliveSpecialResizeBound) {
@@ -1148,7 +1308,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       initialized = true;
       initSpecialLayout();
       console.info('[blive-special-layout] active', {
-        version: '2.1.6-no-list',
+        version: '2.1.7-no-list',
         mode: specialMode,
         href: location.href
       });

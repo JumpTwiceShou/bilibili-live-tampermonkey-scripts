@@ -33,5 +33,5 @@
 document.documentElement.dataset.bliveSpecialLayoutVersion
 ```
 
-- `keep-list` 版本应返回 `2.1.6`
-- `no-list` 版本应返回 `2.1.6-no-list`
+- `keep-list` 版本应返回 `2.1.7`
+- `no-list` 版本应返回 `2.1.7-no-list`
