@@ -26,9 +26,7 @@
     'https://s1.hdslb.com/bfs/static/blive/blfe-live-room/static/css/1061.160ae97049729966266b.vip.css'
   ];
 
-  const LIVE_FOLLOW_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/GetWebList?hit_ab=false';
-  const FOLLOWING_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/user/following?page=1&page_size=30&ignoreRecord=1&hit_ab=true';
-  const REC_URL = 'https://api.live.bilibili.com/xlive/web-interface/v1/index/WebGetUnLoginRecList';
+  const LIVE_FOLLOW_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/GetWebList?hit_ab=true';
   const LAB_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/v1/labs/InfoPlugs';
   const MORE_FOLLOW_URL = 'https://link.bilibili.com/p/center/index#/user-center/follow/1';
   const STYLE_ID = 'blive-special-layout-style';
@@ -796,7 +794,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         return;
       }
       const roomid = node.roomid || node.room_id || node.roomId || node.id || node.anchor_roomid;
-      const face = node.face || node.face_url || node.avatar || node.cover || node.cover_from_user || '';
+      const face = node.face || node.face_url || node.uface || node.upic || node.avatar || node.cover || node.user_cover || node.cover_from_user || '';
       const nickname = node.nickname || node.uname || node.name || node.anchor_name || '';
       let href = node.link || node.url || node.jump_url || node.room_link || '';
 
@@ -819,7 +817,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       Object.values(node).forEach(walk);
     };
     walk(payload.data || payload);
-    return out.slice(0, 30);
+    return out;
   }
 
   function findFirstUrl(node) {
@@ -857,30 +855,20 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     return resp.json();
   }
 
+  function withCacheBuster(url) {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}_=${Date.now()}`;
+  }
+
   async function fetchSidebarPayload() {
     let title = '我的关注';
     let items = [];
     let labUrl = '';
 
     try {
-      items = extractRooms(await fetchJson(LIVE_FOLLOW_URL));
+      items = extractRooms(await fetchJson(withCacheBuster(LIVE_FOLLOW_URL)));
     } catch (_err) {
       // ignore
-    }
-    if (!items.length) {
-      try {
-        items = extractRooms(await fetchJson(FOLLOWING_URL));
-      } catch (_err) {
-        // ignore
-      }
-    }
-    if (!items.length) {
-      title = '主播推荐';
-      try {
-        items = extractRooms(await fetchJson(REC_URL));
-      } catch (_err) {
-        // ignore
-      }
     }
     try {
       const labs = await fetchJson(LAB_URL);
@@ -1110,7 +1098,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       const next = !popupOpen;
       setPopup(next);
       if (next) {
-        loadFollow(false);
+        loadFollow(true);
       }
     });
 
