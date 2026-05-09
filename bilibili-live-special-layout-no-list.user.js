@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili Live Special Layout (No List)
 // @namespace    https://live.bilibili.com/
-// @version      2.1.7-no-list
+// @version      2.1.8-no-list
 // @description  Special-page only, fixed no-list mode + native-like sidebar.
 // @match        https://live.bilibili.com/*
 // @run-at       document-idle
@@ -33,8 +33,12 @@
   const HOST_CLASS = 'blive-special-layout-host';
   const ROOT_CLASS = 'blive-special-layout-root';
   const DATA_KEY = 'bliveSpecialShellExtra';
-  const MAX_PLAYER_WIDTH = 1504;
-  const VIEWPORT_GUTTER = 80;
+  const NORMAL_ROOM_MIN_BODY_WIDTH = 980;
+  const NORMAL_ROOM_MAX_BODY_WIDTH = 3420;
+  const NORMAL_ROOM_VIEWPORT_GUTTER = 100;
+  const NORMAL_ROOM_VERTICAL_RESERVED = 136 + 78 + 64;
+  const NORMAL_ROOM_EXTRA_GUTTER = 12 + 100;
+  const SPECIAL_PLAYER_SIZE_RATIO = 1.4;
   const LAB_ICON_URL = 'https://i1.hdslb.com/bfs/static/blive/blfe-live-room/static/img/laboratory.11696de..svg';
   const MORE_ARROW_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAATCAYAAACp65zuAAAACXBIWXMAABYlAAAWJQFJUiTwAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAC0SURBVHgBjdK9DcIwEAXgO7ugZRQCAqX0KC4QVQo2SNiAnxaxAmICoINIgYwCPXKwjUCAk7u8wnqyPltXHGg97epxooCJgM5jiwL3Fqc0rHDnisUZhWVZ5Kf+IEbbFSKqXjSC8pIfA+iOa3E+cFi+C4fl9ysKy/9ZmrCEmoR4eK+FAQaMBRAxYCpfEG6NUE+S1P6UeWdgIXiEs816NUceLV+9DfqBFPpADvn7NsjF7WPEIZcnb4ttz404aTsAAAAASUVORK5CYII=';
   const MORE_ARROW_ICON_HOVER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAATCAYAAACp65zuAAAACXBIWXMAABYlAAAWJQFJUiTwAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACESURBVHgB3dLBDYAgDAXQXzybeHEQN3AJB3ECcQQncACjxgkcxQHQxAWkIsQjcFYSkn94KTQt0G8ZBlUicgSydEZCK8ajCUNNi03EMoaBUUlMO9v7YUxBTOQqMtcUrezwKYJQCHaBAnA2f2MzBPu07vzobWZQ8mfo2cdLFzZd3KLKvfAGrvyK4hn9U0kAAAAASUVORK5CYII=';
@@ -183,6 +187,36 @@
       el.style.removeProperty('transform');
       el.style.removeProperty('transform-origin');
     });
+  }
+
+  function getNormalRoomAsideGap(viewportWidth) {
+    if (viewportWidth >= 2560) {
+      return 432;
+    }
+    if (viewportWidth >= 1440) {
+      return 392;
+    }
+    return 332;
+  }
+
+  function getNormalRoomPlayerWidth(win) {
+    const viewportWidth = win.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = win.innerHeight || document.documentElement.clientHeight || 0;
+    const asideGap = getNormalRoomAsideGap(viewportWidth);
+    const asideWidth = viewportWidth >= 2560 ? 420 : (viewportWidth >= 1440 ? 380 : 320);
+    const heightBoundBodyWidth =
+      ((viewportHeight - NORMAL_ROOM_VERTICAL_RESERVED) * 16 / 9) +
+      asideWidth +
+      NORMAL_ROOM_EXTRA_GUTTER;
+    const widthBoundBodyWidth = viewportWidth - NORMAL_ROOM_VIEWPORT_GUTTER;
+    const bodyWidth = Math.min(
+      NORMAL_ROOM_MAX_BODY_WIDTH,
+      Math.max(
+        NORMAL_ROOM_MIN_BODY_WIDTH,
+        Math.min(heightBoundBodyWidth, widthBoundBodyWidth)
+      )
+    );
+    return Math.max(320, Math.round((bodyWidth - asideGap) * SPECIAL_PLAYER_SIZE_RATIO));
   }
 
   function getBlancFrame(doc) {
@@ -386,10 +420,10 @@
     style.id = FRAME_STYLE_ID;
     style.textContent = `
 html.blive-special-embedded {
-  --blive-special-frame-width: min(1504px, 100vw);
-  --blive-special-left-width: 1190px;
-  --blive-special-right-width: 302px;
-  --blive-special-left-height: 670px;
+  --blive-special-frame-width: 100vw;
+  --blive-special-left-width: 100vw;
+  --blive-special-right-width: 0px;
+  --blive-special-left-height: calc(var(--blive-special-left-width) * 9 / 16);
 }
 html.blive-special-embedded .player-and-aside-area {
   width: var(--blive-special-frame-width) !important;
@@ -413,6 +447,7 @@ html.blive-special-embedded #chat-history-list,
 html.blive-special-embedded #chat-control-panel-vm {
   width: var(--blive-special-right-width) !important;
   max-width: var(--blive-special-right-width) !important;
+  display: none !important;
 }
 html.blive-special-embedded .fullscreen-container-paddingbox,
 html.blive-special-embedded #fullscreen-container,
@@ -442,7 +477,7 @@ html.blive-special-embedded .fullscreen-container-paddingbox video {
   function initEmbeddedFrameLayout() {
     const doc = document;
     doc.documentElement.classList.add('blive-special-embedded');
-    doc.documentElement.dataset.bliveSpecialLayoutVersion = `${FORCE_MODE === 'no-list' ? '2.1.4-no-list' : '2.1.4'}-frame`;
+    doc.documentElement.dataset.bliveSpecialLayoutVersion = `${FORCE_MODE === 'no-list' ? '2.1.8-no-list' : '2.1.8'}-frame`;
     ensureEmbeddedFrameStyle(doc);
   }
 
@@ -454,7 +489,7 @@ html.blive-special-embedded .fullscreen-container-paddingbox video {
     style.id = STYLE_ID;
     style.textContent = `
 html.blive-special-layout {
-  --blive-special-player-width: min(1504px, calc(100vw - 60px));
+  --blive-special-player-width: min(calc((100vw - 100px) * 0.85), 2540px);
   --blive-special-player-height: calc(var(--blive-special-player-width) * 0.5864361702);
   --blive-special-list-width: min(1220px, var(--blive-special-player-width));
 }
@@ -950,7 +985,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         <p data-v-7d702bb4="" class="size-bar-text color-#0080c6" style="color: rgb(0, 128, 198);">关注</p>
       </div>
     </div>
-    <div data-v-12f789d4="" role="button" data-upgrade-intro="Top" class="side-bar-btn no-text tm-sidebar-top" style="display:none;">
+    <div data-v-12f789d4="" role="button" data-upgrade-intro="Top" class="side-bar-btn no-text tm-sidebar-top" style="display:block;">
       <div data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
         <span data-v-7d702bb4="" class="side-bar-icon dp-i-block icon-font icon-arrow-top"></span>
       </div>
@@ -1025,10 +1060,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     let labUrl = '';
 
     const scheduleTop = withRafScheduler(window, () => {
-      const show = window.scrollY > getPlayerTop(doc) + 120;
-      topBtn.style.display = show ? 'block' : 'none';
-      cntr.style.minHeight = show ? '114px' : '86px';
-      cntr.style.height = show ? '114px' : '60px';
+      topBtn.style.display = 'block';
+      cntr.style.minHeight = '114px';
+      cntr.style.height = '114px';
     });
 
     function setPopup(open) {
@@ -1170,10 +1204,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return false;
     }
 
-    const targetWidth = Math.min(
-      MAX_PLAYER_WIDTH,
-      Math.max(baseVideoWidth, window.innerWidth - VIEWPORT_GUTTER)
-    );
+    const targetWidth = Math.max(baseVideoWidth, getNormalRoomPlayerWidth(window));
     const scale = targetWidth / baseVideoWidth;
     const targetHeight = Math.round(baseVideoHeight * scale);
     const targetShellWidth = Math.round(targetWidth + getShellExtraWidth(playerRoot));
@@ -1365,7 +1396,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     clearLayoutInlineSizes(doc.querySelector('.live-non-revenue-player'));
     doc.documentElement.classList.add('blive-special-layout');
     doc.documentElement.classList.toggle('blf-no-list', specialMode === 'no-list');
-    doc.documentElement.dataset.bliveSpecialLayoutVersion = '2.1.7-no-list';
+    doc.documentElement.dataset.bliveSpecialLayoutVersion = '2.1.8-no-list';
     ensureOfficialSidebarCss(doc);
     ensureStyle(doc);
     setupSidebar(doc);
@@ -1398,7 +1429,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       initialized = true;
       initSpecialLayout();
       console.info('[blive-special-layout] active', {
-        version: '2.1.7-no-list',
+        version: '2.1.8-no-list',
         mode: specialMode,
         href: location.href
       });
