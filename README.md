@@ -35,3 +35,16 @@ document.documentElement.dataset.bliveSpecialLayoutVersion
 
 - `keep-list` 版本应返回 `2.1.7`
 - `no-list` 版本应返回 `2.1.7-no-list`
+
+## 直播间分区显示插件
+
+- [bilibili-live-room-area-badge.user.js](E:/Bilibili/BIlibili/bilibili-live-room-area-badge.user.js)
+  独立的 Tampermonkey 插件。普通直播间和特殊 layout 直播页都会显示当前直播间的父分区 / 子分区，并且分区名称带 B 站分区页超链接。
+
+启用后可以在控制台验证：
+
+```js
+document.documentElement.dataset.bliveRoomAreaBadgeVersion
+```
+
+期望值：`1.0.3`。
