@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili Live Room Area Badge
 // @namespace    https://live.bilibili.com/
-// @version      1.0.3
+// @version      1.0.2
 // @description  Show the current live room area near the room header, with links to the parent and child live area pages.
 // @match        https://live.bilibili.com/*
 // @exclude      https://live.bilibili.com/p/*
@@ -17,7 +17,7 @@
     return;
   }
 
-  const VERSION = '1.0.3';
+  const VERSION = '1.0.2';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -68,7 +68,7 @@
   line-height: 1;
   white-space: nowrap;
   pointer-events: auto;
-  z-index: 10020;
+  z-index: 120;
 }
 
 #${HOST_ID}.blive-room-area-badge-static {
@@ -260,6 +260,67 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return rect.width > 20 && rect.height > 10;
   }
 
+  function findNormalHeaderMount() {
+    return firstVisible([
+      '#head-info-vm .upper-row',
+      '#head-info-vm .room-info-ctnr',
+      '#head-info-vm .room-info-cntr',
+      '#head-info-vm',
+      '.room-info-ctnr .upper-row',
+      '.room-info-cntr .upper-row',
+      '.room-info-ctnr',
+      '.room-info-cntr',
+      '.room-info-wrapper'
+    ]);
+  }
+
+  function findSpecialHandleBar() {
+    return firstVisible([
+      '.live-player-handle-bar',
+      '.live-non-revenue-player [class*="handle"]',
+      '.live-non-revenue-player [class*="header"]'
+    ]);
+  }
+
+  function findSpecialInsertBefore(bar) {
+    const keywords = [
+      '\u70ed\u95e8\u699c',
+      '\u66f4\u591a\u8bbe\u7f6e',
+      '\u822a\u6d77',
+      '\u5927\u822a\u6d77'
+    ];
+    for (const keyword of keywords) {
+      const walker = document.createTreeWalker(bar, NodeFilter.SHOW_ELEMENT);
+      let current = walker.currentNode;
+      let matched = null;
+      while (current) {
+        if (current !== bar && compactText(current.textContent).includes(keyword)) {
+          matched = current;
+        }
+        current = walker.nextNode();
+      }
+      if (matched) {
+        const child = directChildOf(bar, matched);
+        if (child) {
+          return child;
+        }
+      }
+    }
+    return null;
+  }
+
+  function compactText(text) {
+    return String(text || '').replace(/\s+/g, '');
+  }
+
+  function directChildOf(root, node) {
+    let current = node;
+    while (current && current.parentElement && current.parentElement !== root) {
+      current = current.parentElement;
+    }
+    return current && current.parentElement === root ? current : null;
+  }
+
   function getPlayerRect() {
     const player = firstVisible([
       '.live-non-revenue-player',
@@ -287,9 +348,8 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       host.style.top = '74px';
       return;
     }
-    const leftOffset = Math.max(205, Math.min(260, Math.round(rect.width * 0.19)));
-    const left = Math.max(12, Math.min(window.innerWidth - 180, rect.left + leftOffset));
-    const top = Math.max(58, Math.min(window.innerHeight - 32, rect.top - 38));
+    const left = Math.max(12, Math.min(window.innerWidth - 180, rect.left + 252));
+    const top = Math.max(58, Math.min(window.innerHeight - 32, rect.top + 14));
     host.style.left = `${Math.round(left)}px`;
     host.style.top = `${Math.round(top)}px`;
   }
@@ -303,6 +363,33 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     ensureStyle();
     const host = getHost();
     host.classList.remove('blive-room-area-badge-hidden');
+
+    const normalMount = findNormalHeaderMount();
+    if (normalMount && !normalMount.closest('.live-non-revenue-player')) {
+      host.className = 'blive-room-area-badge-static';
+      host.style.left = '';
+      host.style.top = '';
+      if (host.parentElement !== normalMount) {
+        normalMount.appendChild(host);
+      }
+      return;
+    }
+
+    const specialBar = findSpecialHandleBar();
+    if (specialBar) {
+      host.className = 'blive-room-area-badge-static';
+      host.style.left = '';
+      host.style.top = '';
+      const before = findSpecialInsertBefore(specialBar);
+      if (before && before !== host && before.parentElement === specialBar) {
+        if (host.nextElementSibling !== before || host.parentElement !== specialBar) {
+          specialBar.insertBefore(host, before);
+        }
+      } else if (host.parentElement !== specialBar) {
+        specialBar.appendChild(host);
+      }
+      return;
+    }
 
     host.className = 'blive-room-area-badge-floating';
     if (host.parentElement !== document.body) {
