@@ -47,4 +47,4 @@ document.documentElement.dataset.bliveSpecialLayoutVersion
 document.documentElement.dataset.bliveRoomAreaBadgeVersion
 ```
 
-期望值：`1.0.2`。
+期望值：`1.0.10`。
