@@ -44,7 +44,9 @@
 
 ![特殊聚合页跳转使用前](docs/images/special-blanc-before.png)
 
-使用后截图待补：`docs/images/special-blanc-after.png`
+使用后：
+
+![特殊聚合页跳转使用后](docs/images/special-blanc-after.png)
 
 ### 特殊聚合页布局（保留列表）
 
