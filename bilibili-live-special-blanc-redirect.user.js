@@ -12,7 +12,7 @@
 // @grant        none
 // @noframes
 // @license      GPL-3.0-only
-// @supportURL   https://github.com/shoukounan0227/bilibili-live-tampermonkey-scripts/issues
+// @supportURL   https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
 
 (function () {

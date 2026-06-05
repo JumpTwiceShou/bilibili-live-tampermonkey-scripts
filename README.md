@@ -6,11 +6,11 @@
 
 | 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
 | --- | --- | --- | --- | --- |
-| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | 发布后补充 |
-| B站直播间标题与分区显示 | 1.0.15 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | 发布后补充 |
-| B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | 发布后补充 |
-| B站特殊聚合页普通直播间布局（保留列表） | 2.1.8 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | 发布后补充 |
-| B站特殊聚合页普通直播间布局（隐藏列表） | 2.1.8-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | 发布后补充 |
+| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | 发布后补充 |
+| B站直播间标题与分区显示 | 1.0.15 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | 发布后补充 |
+| B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | 发布后补充 |
+| B站特殊聚合页普通直播间布局（保留列表） | 2.1.8 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | 发布后补充 |
+| B站特殊聚合页普通直播间布局（隐藏列表） | 2.1.8-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | 发布后补充 |
 
 ## 使用方法
 
@@ -20,7 +20,7 @@
    - 想保留聚合列表：启用 `B站特殊聚合页普通直播间布局（保留列表）`。
    - 想隐藏聚合列表：启用 `B站特殊聚合页普通直播间布局（隐藏列表）`。
    - 想直接进入普通播放器：启用 `B站特殊聚合直播跳转普通播放器`，同时关闭两个特殊聚合页布局脚本。
-4. 如果页面结构更新导致脚本失效，请在 [Issues](https://github.com/shoukounan0227/bilibili-live-tampermonkey-scripts/issues) 反馈页面地址、脚本版本和截图。
+4. 如果页面结构更新导致脚本失效，请在 [Issues](https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues) 反馈页面地址、脚本版本和截图。
 
 ## 效果参考
 
