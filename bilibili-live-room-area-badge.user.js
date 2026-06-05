@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.17
+// @version      1.0.18
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -21,7 +21,7 @@
     return;
   }
 
-  const VERSION = '1.0.17';
+  const VERSION = '1.0.18';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -30,6 +30,7 @@
   const AREA_PAGE_URL = 'https://live.bilibili.com/p/eden/area-tags';
   const HEADER_MOUNT_SELECTOR = '#head-info-vm .normal-row-ctnr';
   const HEADER_RIGHT_MODULES_SELECTOR = '#head-info-vm .right-fixed-modules';
+  const SPECIAL_MOUNT_SELECTOR = '.live-player-handle-bar';
   const SOCIAL_ANCHOR_SELECTORS = [
     '.follow-ctnr',
     '[class*="follow-ctnr"]',
@@ -57,7 +58,7 @@
     info: null,
     loadingRoomId: '',
     attachTimer: 0,
-    headerWaitTimer: 0,
+    mountWaitTimer: 0,
     refreshTimer: 0,
     slowTimer: 0,
     lastPath: location.href
@@ -384,22 +385,38 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return waitForElement(() => document.querySelector(selector), exec, timeout, onDone);
   }
 
-  function waitForHeaderMount() {
-    if (state.headerWaitTimer) {
+  function waitForMount() {
+    if (state.mountWaitTimer) {
       return;
     }
-    state.headerWaitTimer = waitForQuery(
-      HEADER_MOUNT_SELECTOR,
+    state.mountWaitTimer = waitForElement(
+      findMount,
       () => scheduleAttach(),
       10000,
       () => {
-        state.headerWaitTimer = 0;
+        state.mountWaitTimer = 0;
       }
     ) || 0;
   }
 
-  function findHeaderMount() {
-    return document.querySelector(HEADER_MOUNT_SELECTOR);
+  function findMount() {
+    const headerMount = document.querySelector(HEADER_MOUNT_SELECTOR);
+    if (headerMount) {
+      return {
+        node: headerMount,
+        type: 'header'
+      };
+    }
+
+    const specialMount = document.querySelector(SPECIAL_MOUNT_SELECTOR);
+    if (specialMount) {
+      return {
+        node: specialMount,
+        type: 'special-handle-bar'
+      };
+    }
+
+    return null;
   }
 
   function findHeaderInsertBefore(mount) {
@@ -417,14 +434,12 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       }
     }
 
-    const walker = document.createTreeWalker(mount, NodeFilter.SHOW_ELEMENT);
-    let current = walker.currentNode;
-    while (current) {
+    const keywordNodes = mount.querySelectorAll('*');
+    for (const current of keywordNodes) {
       const text = compactText(current.textContent || current.getAttribute('title') || current.getAttribute('aria-label'));
       if (SOCIAL_ANCHOR_KEYWORDS.some((keyword) => text.includes(keyword))) {
         addSocialAnchorCandidate(candidates, mount, host, rightModules, current);
       }
-      current = walker.nextNode();
     }
 
     candidates.sort((left, right) => {
@@ -480,7 +495,8 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return String(text || '').replace(/\s+/g, '');
   }
 
-  function findHeaderInsertSlot(mount, host) {
+  function findInsertSlot(mountInfo, host) {
+    const mount = mountInfo.node;
     const socialAnchor = findHeaderSocialAnchor(mount, host);
     if (socialAnchor && socialAnchor.parentElement) {
       let before = socialAnchor.nextSibling;
@@ -494,7 +510,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     }
     return {
       parent: mount,
-      before: findHeaderInsertBefore(mount)
+      before: mountInfo.type === 'header' ? findHeaderInsertBefore(mount) : null
     };
   }
 
@@ -512,17 +528,18 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     const host = getHost();
     host.classList.remove('blive-room-area-badge-hidden');
 
-    const headerMount = findHeaderMount();
-    if (!headerMount) {
+    const mountInfo = findMount();
+    if (!mountInfo) {
       removeHost();
-      waitForHeaderMount();
+      waitForMount();
       return;
     }
 
     host.className = 'blive-room-area-badge-static';
+    host.dataset.bliveRoomAreaBadgeMount = mountInfo.type;
     host.style.left = '';
     host.style.top = '';
-    const slot = findHeaderInsertSlot(headerMount, host);
+    const slot = findInsertSlot(mountInfo, host);
     if (host.parentElement !== slot.parent || host.nextSibling !== slot.before) {
       slot.parent.insertBefore(host, slot.before);
     }
@@ -968,7 +985,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         return;
       }
       removeHost();
-      waitForHeaderMount();
+      waitForMount();
       scheduleAttach();
       scheduleRefresh();
     }, 0);
@@ -1021,7 +1038,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
 
   function init() {
     ensureStyle();
-    waitForHeaderMount();
+    waitForMount();
     attachHost();
     refreshArea();
     watchUrlChange();
