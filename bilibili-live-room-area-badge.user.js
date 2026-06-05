@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.15
+// @version      1.0.16
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -21,13 +21,15 @@
     return;
   }
 
-  const VERSION = '1.0.15';
+  const VERSION = '1.0.16';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
   const API_GET_INFO_BY_ROOM = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom';
   const API_ROOM_INIT = 'https://api.live.bilibili.com/room/v1/Room/room_init';
   const AREA_PAGE_URL = 'https://live.bilibili.com/p/eden/area-tags';
+  const HEADER_MOUNT_SELECTOR = '#head-info-vm .normal-row-ctnr';
+  const HEADER_RIGHT_MODULES_SELECTOR = '#head-info-vm .right-fixed-modules';
   const RETRY_MS = 1500;
   const SLOW_RECHECK_MS = 8000;
 
@@ -37,6 +39,7 @@
     info: null,
     loadingRoomId: '',
     attachTimer: 0,
+    headerWaitTimer: 0,
     refreshTimer: 0,
     slowTimer: 0,
     lastPath: location.href
@@ -81,17 +84,6 @@
   flex: 0 0 auto;
   margin: 0 10px;
   vertical-align: middle;
-}
-
-#${HOST_ID}.blive-room-area-badge-floating {
-  position: fixed;
-  display: flex;
-}
-
-#${HOST_ID}.blive-room-area-badge-special-overlay {
-  position: absolute;
-  display: flex;
-  margin: 0;
 }
 
 #${HOST_ID}.blive-room-area-badge-hidden {
@@ -331,18 +323,6 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return url.href;
   }
 
-  function firstVisible(selectors) {
-    for (const selector of selectors) {
-      const nodes = document.querySelectorAll(selector);
-      for (const node of nodes) {
-        if (isVisibleBox(node)) {
-          return node;
-        }
-      }
-    }
-    return null;
-  }
-
   function isVisibleBox(node) {
     if (!node || !node.getBoundingClientRect) {
       return false;
@@ -351,158 +331,62 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return rect.width > 20 && rect.height > 10;
   }
 
-  function findNormalHeaderMount() {
-    return firstVisible([
-      '#head-info-vm .upper-row',
-      '#head-info-vm .room-info-ctnr',
-      '#head-info-vm .room-info-cntr',
-      '.room-info-ctnr .upper-row',
-      '.room-info-cntr .upper-row',
-      '.room-info-ctnr',
-      '.room-info-cntr',
-      '.room-info-wrapper',
-      '#head-info-vm'
-    ]);
-  }
-
-  function isReadyNormalHeaderMount(mount, host) {
-    if (!mount || mount.id !== 'head-info-vm') {
-      return true;
+  function waitForElement(getElement, exec, timeout = 10000, onDone) {
+    const immediate = getElement();
+    if (immediate) {
+      exec(immediate);
+      if (onDone) {
+        onDone();
+      }
+      return;
     }
 
-    const headerText = Array.from(mount.childNodes)
-      .filter((node) => node !== host)
-      .map((node) => node.textContent || '')
-      .join('');
-    if (/更多设置|关注|粉丝|点赞/.test(headerText)) {
-      return true;
-    }
-
-    const readySelectors = [
-      ':scope .upper-row',
-      ':scope .room-info-ctnr',
-      ':scope .room-info-cntr',
-      ':scope .room-info-wrapper',
-      ':scope [class*="room-info"]',
-      ':scope [class*="follow"]',
-      ':scope [class*="setting"]',
-      ':scope [class*="more"]'
-    ];
-    for (const selector of readySelectors) {
-      const nodes = mount.querySelectorAll(selector);
-      for (const node of nodes) {
-        if (node !== host && !host.contains(node) && isVisibleBox(node)) {
-          return true;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const node = getElement();
+      if (node) {
+        window.clearInterval(timer);
+        exec(node);
+        if (onDone) {
+          onDone();
+        }
+        return;
+      }
+      if (Date.now() - startedAt >= timeout) {
+        window.clearInterval(timer);
+        if (onDone) {
+          onDone();
         }
       }
+    }, 100);
+    return timer;
+  }
+
+  function waitForQuery(selector, exec, timeout = 10000, onDone) {
+    return waitForElement(() => document.querySelector(selector), exec, timeout, onDone);
+  }
+
+  function waitForHeaderMount() {
+    if (state.headerWaitTimer) {
+      return;
     }
-
-    return false;
-  }
-
-  function findSpecialHandleBar() {
-    return firstVisible([
-      '.live-player-handle-bar',
-      '.live-non-revenue-player [class*="handle"]',
-      '.live-non-revenue-player [class*="header"]'
-    ]);
-  }
-
-  function findNormalFanGuardSlot(host) {
-    const follow = firstVisible([
-      '#head-info-vm .follow-ctnr',
-      '#head-info-vm [class*="follow-ctnr"]'
-    ]);
-    if (!follow || follow.closest('.live-non-revenue-player') || !follow.parentElement) {
-      return null;
-    }
-    let before = follow.nextSibling;
-    while (before === host) {
-      before = before.nextSibling;
-    }
-    return {
-      parent: follow.parentElement,
-      before
-    };
-  }
-
-  function findSpecialOverlayMount() {
-    return firstVisible([
-      '.live-player-bg',
-      '.live-non-revenue-player',
-      '#player-ctnr'
-    ]);
-  }
-
-  function findSpecialInsertBefore(bar) {
-    const keywords = [
-      '\u70ed\u95e8\u699c',
-      '\u66f4\u591a\u8bbe\u7f6e',
-      '\u822a\u6d77',
-      '\u5927\u822a\u6d77'
-    ];
-    for (const keyword of keywords) {
-      const walker = document.createTreeWalker(bar, NodeFilter.SHOW_ELEMENT);
-      let current = walker.currentNode;
-      let matched = null;
-      while (current) {
-        if (current !== bar && compactText(current.textContent).includes(keyword)) {
-          matched = current;
-        }
-        current = walker.nextNode();
+    state.headerWaitTimer = waitForQuery(
+      HEADER_MOUNT_SELECTOR,
+      () => scheduleAttach(),
+      10000,
+      () => {
+        state.headerWaitTimer = 0;
       }
-      if (matched) {
-        const child = directChildOf(bar, matched);
-        if (child) {
-          return child;
-        }
-      }
-    }
-    return null;
+    ) || 0;
   }
 
-  function compactText(text) {
-    return String(text || '').replace(/\s+/g, '');
+  function findHeaderMount() {
+    return document.querySelector(HEADER_MOUNT_SELECTOR);
   }
 
-  function directChildOf(root, node) {
-    let current = node;
-    while (current && current.parentElement && current.parentElement !== root) {
-      current = current.parentElement;
-    }
-    return current && current.parentElement === root ? current : null;
-  }
-
-  function getPlayerRect() {
-    const player = firstVisible([
-      '.live-non-revenue-player',
-      '.player-and-aside-area',
-      '#player-ctnr',
-      '.player-section',
-      '.live-player-mounter',
-      '.live-player-bg',
-      '.player',
-      'iframe[src*="/blanc/"]'
-    ]);
-    if (player) {
-      return player.getBoundingClientRect();
-    }
-    return null;
-  }
-
-  function updateFloatingPosition(host, playerRect) {
-    if (!host.classList.contains('blive-room-area-badge-floating')) {
-      return false;
-    }
-    const rect = playerRect || getPlayerRect();
-    if (!rect) {
-      return false;
-    }
-    const left = Math.max(12, Math.min(window.innerWidth - 180, rect.left + 252));
-    const top = Math.max(58, Math.min(window.innerHeight - 32, rect.top + 14));
-    host.style.left = `${Math.round(left)}px`;
-    host.style.top = `${Math.round(top)}px`;
-    return true;
+  function findHeaderInsertBefore(mount) {
+    const rightModules = document.querySelector(HEADER_RIGHT_MODULES_SELECTOR);
+    return rightModules && rightModules.parentElement === mount ? rightModules : null;
   }
 
   function attachHost() {
@@ -519,76 +403,25 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     const host = getHost();
     host.classList.remove('blive-room-area-badge-hidden');
 
-    const normalFanGuardSlot = findNormalFanGuardSlot(host);
-    if (normalFanGuardSlot) {
-      host.className = 'blive-room-area-badge-static';
-      host.style.left = '';
-      host.style.top = '';
-      if (host.parentElement !== normalFanGuardSlot.parent || host.nextSibling !== normalFanGuardSlot.before) {
-        normalFanGuardSlot.parent.insertBefore(host, normalFanGuardSlot.before);
-      }
-      return;
-    }
-
-    const normalMount = findNormalHeaderMount();
-    if (normalMount && !normalMount.closest('.live-non-revenue-player')) {
-      if (!isReadyNormalHeaderMount(normalMount, host)) {
-        removeHost();
-        return;
-      }
-      host.className = 'blive-room-area-badge-static';
-      host.style.left = '';
-      host.style.top = '';
-      if (host.parentElement !== normalMount) {
-        normalMount.appendChild(host);
-      }
-      return;
-    }
-
-    const specialBar = findSpecialHandleBar();
-    if (specialBar) {
-      host.className = 'blive-room-area-badge-static';
-      host.style.left = '';
-      host.style.top = '';
-      const before = findSpecialInsertBefore(specialBar);
-      if (before && before !== host && before.parentElement === specialBar) {
-        if (host.nextElementSibling !== before || host.parentElement !== specialBar) {
-          specialBar.insertBefore(host, before);
-        }
-      } else if (host.parentElement !== specialBar) {
-        specialBar.appendChild(host);
-      }
-      return;
-    }
-
-    const specialOverlayMount = findSpecialOverlayMount();
-    if (specialOverlayMount) {
-      const rect = specialOverlayMount.getBoundingClientRect();
-      host.className = 'blive-room-area-badge-special-overlay';
-      host.style.top = '14px';
-      host.style.left = `${Math.max(210, Math.min(310, Math.round(rect.width * 0.15)))}px`;
-      if (window.getComputedStyle(specialOverlayMount).position === 'static') {
-        specialOverlayMount.style.position = 'relative';
-      }
-      if (host.parentElement !== specialOverlayMount) {
-        specialOverlayMount.appendChild(host);
-      }
-      return;
-    }
-
-    const playerRect = getPlayerRect();
-    if (!playerRect) {
+    const headerMount = findHeaderMount();
+    if (!headerMount) {
       removeHost();
+      waitForHeaderMount();
       return;
     }
 
-    host.className = 'blive-room-area-badge-floating';
-    if (!updateFloatingPosition(host, playerRect)) {
-      removeHost();
+    host.className = 'blive-room-area-badge-static';
+    host.style.left = '';
+    host.style.top = '';
+    const before = findHeaderInsertBefore(headerMount);
+    if (before) {
+      if (host.parentElement !== headerMount || host.nextSibling !== before) {
+        headerMount.insertBefore(host, before);
+      }
       return;
     }
-    if (host.parentElement !== document.body) {
-      document.body.appendChild(host);
+    if (host.parentElement !== headerMount || host.nextSibling) {
+      headerMount.appendChild(host);
     }
   }
 
@@ -1032,6 +865,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         return;
       }
       removeHost();
+      waitForHeaderMount();
       scheduleAttach();
       scheduleRefresh();
     }, 0);
@@ -1059,14 +893,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         return;
       }
       scheduleAttach();
-      updateFloatingPosition(getHost());
     });
-    window.addEventListener('scroll', () => {
-      if (!isLiveRoomPage()) {
-        return;
-      }
-      updateFloatingPosition(getHost());
-    }, { passive: true });
     document.addEventListener('fullscreenchange', () => {
       if (!isLiveRoomPage()) {
         removeHost();
@@ -1091,6 +918,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
 
   function init() {
     ensureStyle();
+    waitForHeaderMount();
     attachHost();
     refreshArea();
     watchUrlChange();
