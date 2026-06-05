@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.16
+// @version      1.0.17
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -21,7 +21,7 @@
     return;
   }
 
-  const VERSION = '1.0.16';
+  const VERSION = '1.0.17';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -30,6 +30,24 @@
   const AREA_PAGE_URL = 'https://live.bilibili.com/p/eden/area-tags';
   const HEADER_MOUNT_SELECTOR = '#head-info-vm .normal-row-ctnr';
   const HEADER_RIGHT_MODULES_SELECTOR = '#head-info-vm .right-fixed-modules';
+  const SOCIAL_ANCHOR_SELECTORS = [
+    '.follow-ctnr',
+    '[class*="follow-ctnr"]',
+    '[class*="follow-btn"]',
+    '[class*="attention"]',
+    '[class*="fans"]',
+    '[class*="fan-medal"]',
+    '[class*="medal"]',
+    '[class*="guard"]',
+    '[class*="sailing"]',
+    '[title*="关注"]',
+    '[title*="粉丝"]',
+    '[title*="大航海"]',
+    '[aria-label*="关注"]',
+    '[aria-label*="粉丝"]',
+    '[aria-label*="大航海"]'
+  ];
+  const SOCIAL_ANCHOR_KEYWORDS = ['关注', '粉丝', '大航海', '航海'];
   const RETRY_MS = 1500;
   const SLOW_RECHECK_MS = 8000;
 
@@ -389,6 +407,97 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return rightModules && rightModules.parentElement === mount ? rightModules : null;
   }
 
+  function findHeaderSocialAnchor(mount, host) {
+    const rightModules = document.querySelector(HEADER_RIGHT_MODULES_SELECTOR);
+    const candidates = [];
+    for (const selector of SOCIAL_ANCHOR_SELECTORS) {
+      const nodes = mount.querySelectorAll(selector);
+      for (const node of nodes) {
+        addSocialAnchorCandidate(candidates, mount, host, rightModules, node);
+      }
+    }
+
+    const walker = document.createTreeWalker(mount, NodeFilter.SHOW_ELEMENT);
+    let current = walker.currentNode;
+    while (current) {
+      const text = compactText(current.textContent || current.getAttribute('title') || current.getAttribute('aria-label'));
+      if (SOCIAL_ANCHOR_KEYWORDS.some((keyword) => text.includes(keyword))) {
+        addSocialAnchorCandidate(candidates, mount, host, rightModules, current);
+      }
+      current = walker.nextNode();
+    }
+
+    candidates.sort((left, right) => {
+      if (left === right) {
+        return 0;
+      }
+      return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    return candidates[candidates.length - 1] || null;
+  }
+
+  function addSocialAnchorCandidate(candidates, mount, host, rightModules, node) {
+    const candidate = normalizeSocialAnchor(node, mount);
+    if (
+      !candidate ||
+      candidate === host ||
+      host.contains(candidate) ||
+      candidate.contains(host) ||
+      candidates.includes(candidate) ||
+      !mount.contains(candidate) ||
+      !isVisibleBox(candidate)
+    ) {
+      return;
+    }
+    if (rightModules && (rightModules === candidate || rightModules.contains(candidate))) {
+      return;
+    }
+    candidates.push(candidate);
+  }
+
+  function normalizeSocialAnchor(node, mount) {
+    if (!node || node === mount) {
+      return null;
+    }
+    const anchored = node.closest([
+      '.follow-ctnr',
+      '[class*="follow-ctnr"]',
+      '[class*="follow-btn"]',
+      '[class*="attention"]',
+      '[class*="fans"]',
+      '[class*="fan-medal"]',
+      '[class*="medal"]',
+      '[class*="guard"]',
+      '[class*="sailing"]',
+      'button',
+      'a',
+      '[role="button"]'
+    ].join(','));
+    return anchored && mount.contains(anchored) ? anchored : node;
+  }
+
+  function compactText(text) {
+    return String(text || '').replace(/\s+/g, '');
+  }
+
+  function findHeaderInsertSlot(mount, host) {
+    const socialAnchor = findHeaderSocialAnchor(mount, host);
+    if (socialAnchor && socialAnchor.parentElement) {
+      let before = socialAnchor.nextSibling;
+      while (before === host) {
+        before = before.nextSibling;
+      }
+      return {
+        parent: socialAnchor.parentElement,
+        before
+      };
+    }
+    return {
+      parent: mount,
+      before: findHeaderInsertBefore(mount)
+    };
+  }
+
   function attachHost() {
     if (!isLiveRoomPage()) {
       removeHost();
@@ -413,15 +522,9 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     host.className = 'blive-room-area-badge-static';
     host.style.left = '';
     host.style.top = '';
-    const before = findHeaderInsertBefore(headerMount);
-    if (before) {
-      if (host.parentElement !== headerMount || host.nextSibling !== before) {
-        headerMount.insertBefore(host, before);
-      }
-      return;
-    }
-    if (host.parentElement !== headerMount || host.nextSibling) {
-      headerMount.appendChild(host);
+    const slot = findHeaderInsertSlot(headerMount, host);
+    if (host.parentElement !== slot.parent || host.nextSibling !== slot.before) {
+      slot.parent.insertBefore(host, slot.before);
     }
   }
 
