@@ -1,50 +1,71 @@
-# Bilibili 特殊页面脚本
+# Bilibili 直播 Tampermonkey 插件合集
 
-这个仓库当前只保留“特殊活动 / 会场页”用的 Tampermonkey 脚本，不再包含普通直播间礼物面板脚本。
+一组用于优化 B 站直播页面的 Tampermonkey 脚本，覆盖普通直播间礼物面板、直播标题与分区显示，以及特殊聚合直播页的播放器布局和跳转。
 
-## 当前文件
+## 插件列表
 
-- [bilibili-live-special-layout.user.js](E:/Bilibili/BIlibili/bilibili-live-special-layout.user.js)
-  `keep-list` 版本。页面首次加载时会默认把顶部 list 收起一次，之后不再强制干预手动展开。
-- [bilibili-live-special-layout-no-list.user.js](E:/Bilibili/BIlibili/bilibili-live-special-layout-no-list.user.js)
-  固定 `no-list` 版本。直接隐藏顶部 list。
+| 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
+| --- | --- | --- | --- | --- |
+| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | 发布后补充 |
+| B站直播间标题与分区显示 | 1.0.15 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | 发布后补充 |
+| B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | 发布后补充 |
+| B站特殊聚合页普通直播间布局（保留列表） | 2.1.8 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | 发布后补充 |
+| B站特殊聚合页普通直播间布局（隐藏列表） | 2.1.8-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/shoukounan0227/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | 发布后补充 |
 
-## 功能范围
+## 使用方法
 
-- 仅对特殊活动 / 会场页生效。
-- 自动识别特殊页结构，不按房间号硬编码。
-- 将播放器区域按普通直播间思路放大重排。
-- 右侧补齐类似普通直播间的侧栏和关注弹层。
-- 点击“返回顶部”回到播放器区域顶部，而不是页面最顶。
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或其他用户脚本管理器。
+2. 按上表选择脚本安装。普通直播间可启用礼物面板覆盖和标题分区显示。
+3. 特殊聚合页有三种互斥方案：
+   - 想保留聚合列表：启用 `B站特殊聚合页普通直播间布局（保留列表）`。
+   - 想隐藏聚合列表：启用 `B站特殊聚合页普通直播间布局（隐藏列表）`。
+   - 想直接进入普通播放器：启用 `B站特殊聚合直播跳转普通播放器`，同时关闭两个特殊聚合页布局脚本。
+4. 如果页面结构更新导致脚本失效，请在 [Issues](https://github.com/shoukounan0227/bilibili-live-tampermonkey-scripts/issues) 反馈页面地址、脚本版本和截图。
 
-## 安装方式
+## 效果参考
 
-1. 安装 [Tampermonkey](https://www.tampermonkey.net/)。
-2. 二选一导入脚本：
-   [bilibili-live-special-layout.user.js](E:/Bilibili/BIlibili/bilibili-live-special-layout.user.js)
-   [bilibili-live-special-layout-no-list.user.js](E:/Bilibili/BIlibili/bilibili-live-special-layout-no-list.user.js)
-3. 保存并启用。
+### 礼物面板覆盖
 
-## 验证版本
+修改前：
 
-脚本启用后，可以在浏览器控制台执行：
+![礼物面板修改前](docs/images/gift-panel-before.png)
+
+修改后：
+
+![礼物面板修改后](docs/images/gift-panel-after.png)
+
+### 标题与分区显示
+
+![标题与分区显示](docs/images/room-area-badge.png)
+
+### 特殊聚合页跳转普通播放器
+
+使用前：
+
+![特殊聚合页跳转使用前](docs/images/special-blanc-before.png)
+
+使用后截图待补：`docs/images/special-blanc-after.png`
+
+### 特殊聚合页布局（保留列表）
+
+![特殊聚合页布局保留列表](docs/images/special-layout-keep-list.png)
+
+### 特殊聚合页布局（隐藏列表）
+
+![特殊聚合页布局隐藏列表](docs/images/special-layout-no-list.png)
+
+## 控制台验证
+
+启用脚本后，可以在浏览器控制台检查对应版本：
 
 ```js
 document.documentElement.dataset.bliveSpecialLayoutVersion
-```
-
-- `keep-list` 版本应返回 `2.1.7`
-- `no-list` 版本应返回 `2.1.7-no-list`
-
-## 直播间分区显示插件
-
-- [bilibili-live-room-area-badge.user.js](E:/Bilibili/BIlibili/bilibili-live-room-area-badge.user.js)
-  独立的 Tampermonkey 插件。普通直播间和特殊 layout 直播页都会显示当前直播间的父分区 / 子分区，并且分区名称带 B 站分区页超链接。
-
-启用后可以在控制台验证：
-
-```js
 document.documentElement.dataset.bliveRoomAreaBadgeVersion
+document.documentElement.dataset.bliveSpecialBlancRedirectVersion
 ```
 
-期望值：`1.0.10`。
+礼物面板覆盖脚本主要注入样式，不暴露版本字段；可通过 Tampermonkey 管理页确认版本 `1.1.3`。
+
+## 许可证
+
+本项目使用 [GNU General Public License v3.0 only](LICENSE) 发布。

@@ -1,13 +1,17 @@
 // ==UserScript==
 // @name         Bilibili Live Room Area Badge
+// @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.10
+// @version      1.0.15
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
+// @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
 // @exclude      https://live.bilibili.com/p/*
 // @run-at       document-idle
 // @grant        none
 // @noframes
+// @license      GPL-3.0-only
+// @supportURL   https://github.com/shoukounan0227/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
 
 (function () {
@@ -17,7 +21,7 @@
     return;
   }
 
-  const VERSION = '1.0.10';
+  const VERSION = '1.0.15';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -164,7 +168,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   }
 
   function isLiveRoomPage() {
-    return /^\/\d+(?:\/|$)/.test(location.pathname);
+    return /^\/(?:blanc\/)?\d+(?:\/|$)/.test(location.pathname);
   }
 
   function resetAreaState() {
@@ -352,13 +356,48 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       '#head-info-vm .upper-row',
       '#head-info-vm .room-info-ctnr',
       '#head-info-vm .room-info-cntr',
-      '#head-info-vm',
       '.room-info-ctnr .upper-row',
       '.room-info-cntr .upper-row',
       '.room-info-ctnr',
       '.room-info-cntr',
-      '.room-info-wrapper'
+      '.room-info-wrapper',
+      '#head-info-vm'
     ]);
+  }
+
+  function isReadyNormalHeaderMount(mount, host) {
+    if (!mount || mount.id !== 'head-info-vm') {
+      return true;
+    }
+
+    const headerText = Array.from(mount.childNodes)
+      .filter((node) => node !== host)
+      .map((node) => node.textContent || '')
+      .join('');
+    if (/更多设置|关注|粉丝|点赞/.test(headerText)) {
+      return true;
+    }
+
+    const readySelectors = [
+      ':scope .upper-row',
+      ':scope .room-info-ctnr',
+      ':scope .room-info-cntr',
+      ':scope .room-info-wrapper',
+      ':scope [class*="room-info"]',
+      ':scope [class*="follow"]',
+      ':scope [class*="setting"]',
+      ':scope [class*="more"]'
+    ];
+    for (const selector of readySelectors) {
+      const nodes = mount.querySelectorAll(selector);
+      for (const node of nodes) {
+        if (node !== host && !host.contains(node) && isVisibleBox(node)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   function findSpecialHandleBar() {
@@ -451,20 +490,19 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return null;
   }
 
-  function updateFloatingPosition(host) {
+  function updateFloatingPosition(host, playerRect) {
     if (!host.classList.contains('blive-room-area-badge-floating')) {
-      return;
+      return false;
     }
-    const rect = getPlayerRect();
+    const rect = playerRect || getPlayerRect();
     if (!rect) {
-      host.style.left = '16px';
-      host.style.top = '74px';
-      return;
+      return false;
     }
     const left = Math.max(12, Math.min(window.innerWidth - 180, rect.left + 252));
     const top = Math.max(58, Math.min(window.innerHeight - 32, rect.top + 14));
     host.style.left = `${Math.round(left)}px`;
     host.style.top = `${Math.round(top)}px`;
+    return true;
   }
 
   function attachHost() {
@@ -474,6 +512,10 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     }
 
     ensureStyle();
+    if (!state.infoKey || !state.info) {
+      removeHost();
+      return;
+    }
     const host = getHost();
     host.classList.remove('blive-room-area-badge-hidden');
 
@@ -490,6 +532,10 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
 
     const normalMount = findNormalHeaderMount();
     if (normalMount && !normalMount.closest('.live-non-revenue-player')) {
+      if (!isReadyNormalHeaderMount(normalMount, host)) {
+        removeHost();
+        return;
+      }
       host.className = 'blive-room-area-badge-static';
       host.style.left = '';
       host.style.top = '';
@@ -530,11 +576,20 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       return;
     }
 
+    const playerRect = getPlayerRect();
+    if (!playerRect) {
+      removeHost();
+      return;
+    }
+
     host.className = 'blive-room-area-badge-floating';
+    if (!updateFloatingPosition(host, playerRect)) {
+      removeHost();
+      return;
+    }
     if (host.parentElement !== document.body) {
       document.body.appendChild(host);
     }
-    updateFloatingPosition(host);
   }
 
   function scheduleAttach() {
@@ -884,22 +939,23 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       return;
     }
 
-    const host = getHost();
     const roomId = detectRoomId();
 
     if (!roomId) {
       const fromState = withTitleFallback(findAreaInKnownState());
       if (fromState) {
         const key = areaKey(fromState);
+        const host = getHost();
         if (key !== state.infoKey || host.dataset.bliveRoomAreaBadgeKey !== key) {
           state.infoKey = key;
           state.info = fromState;
           renderArea(host, fromState);
+          scheduleAttach();
         }
         return;
       }
       if (!state.infoKey) {
-        renderLoading(host);
+        removeHost();
       }
       scheduleRefresh(RETRY_MS);
       return;
@@ -911,7 +967,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     if (state.roomId !== roomId) {
       state.roomId = roomId;
       if (!state.infoKey) {
-        renderLoading(host);
+        removeHost();
       }
     }
 
@@ -921,22 +977,24 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       state.loadingRoomId = '';
       if (!info) {
         if (!state.infoKey) {
-          renderUnavailable(host);
+          removeHost();
         }
         scheduleRefresh(SLOW_RECHECK_MS);
         return;
       }
 
       const key = areaKey(info);
+      const host = getHost();
       if (key !== state.infoKey || host.dataset.bliveRoomAreaBadgeKey !== key) {
         state.infoKey = key;
         state.info = info;
         renderArea(host, info);
+        scheduleAttach();
       }
     } catch (error) {
       state.loadingRoomId = '';
       if (!state.infoKey) {
-        renderUnavailable(host);
+        removeHost();
       }
       scheduleRefresh(SLOW_RECHECK_MS);
     }
@@ -973,7 +1031,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         removeHost();
         return;
       }
-      renderLoading(getHost());
+      removeHost();
       scheduleAttach();
       scheduleRefresh();
     }, 0);

@@ -1,12 +1,16 @@
 // ==UserScript==
 // @name         Bilibili Live Special Layout (No List)
+// @name:zh-CN   B站特殊聚合页普通直播间布局（隐藏列表）
 // @namespace    https://live.bilibili.com/
 // @version      2.1.8-no-list
 // @description  Special-page only, fixed no-list mode + native-like sidebar.
+// @description:zh-CN 将 B 站特殊聚合直播页重排为接近普通直播间的宽屏布局，隐藏聚合列表并补齐关注侧栏和回到播放器按钮。
 // @match        https://live.bilibili.com/*
 // @run-at       document-idle
 // @grant        none
 // @noframes
+// @license      GPL-3.0-only
+// @supportURL   https://github.com/shoukounan0227/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
 
 (function () {
