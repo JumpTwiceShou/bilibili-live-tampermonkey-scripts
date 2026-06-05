@@ -6,7 +6,7 @@
 
 | 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
 | --- | --- | --- | --- | --- |
-| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | 发布后补充 |
+| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
 | B站直播间标题与分区显示 | 1.0.15 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | 发布后补充 |
 | B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | 发布后补充 |
 | B站特殊聚合页普通直播间布局（保留列表） | 2.1.8 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | 发布后补充 |
