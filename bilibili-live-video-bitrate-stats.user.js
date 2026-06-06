@@ -1,9 +1,11 @@
 // ==UserScript==
-// @name         Bilibili Live Video Bitrate Stats
+// @name         B站直播视频统计面板画面码率
+// @name:en      Bilibili Live Video Bitrate Stats
 // @name:zh-CN   B站直播视频统计面板画面码率
 // @namespace    https://live.bilibili.com/
-// @version      1.0.0
-// @description  Show estimated video bitrate next to FPS in Bilibili Live's video stats panel.
+// @version      1.0.1
+// @description  在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
+// @description:en Show estimated video bitrate next to FPS in Bilibili Live's video stats panel.
 // @description:zh-CN 在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
 // @match        https://live.bilibili.com/*
 // @exclude      https://live.bilibili.com/p/*
@@ -26,7 +28,7 @@
     configurable: false
   });
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const STYLE_ID = 'blive-video-bitrate-stats-style';
   const VALUE_CLASS = 'blive-video-bitrate-stats-value';
   const DROPPED_FRAMES_ROW_ID = 'p-video-info-droppedFrames';
