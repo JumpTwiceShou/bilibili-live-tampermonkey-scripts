@@ -6,7 +6,7 @@
 
 | 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
 | --- | --- | --- | --- | --- |
-| B站直播礼物面板覆盖 | 1.1.3 | 礼物大面板覆盖到播放器右下角，固定两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
+| B站直播礼物面板布局重构 | 1.1.4 | 重构礼物大面板布局，将面板固定在播放器右下角并保持两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
 | B站直播间标题与分区显示 | 1.0.19 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581316-bilibili-live-room-area-badge) |
 | B站直播视频统计面板画面码率 | 1.0.1 | 在播放器右键视频统计信息面板的 Decoded Frames 行旁显示估算画面码率。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-video-bitrate-stats.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581368-b站直播视频统计面板画面码率) |
 | B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581317-bilibili-live-special-blanc-redirect) |
@@ -16,7 +16,7 @@
 ## 使用方法
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或其他用户脚本管理器。
-2. 按上表选择脚本安装。普通直播间可启用礼物面板覆盖、标题分区显示和视频统计面板画面码率。
+2. 按上表选择脚本安装。普通直播间可启用礼物面板布局重构、标题分区显示和视频统计面板画面码率。
 3. 特殊聚合页有三种互斥方案：
    - 想保留聚合列表：启用 `B站特殊聚合页普通直播间布局（保留列表）`。
    - 想隐藏聚合列表：启用 `B站特殊聚合页普通直播间布局（隐藏列表）`。
@@ -25,7 +25,7 @@
 
 ## 效果参考
 
-### 礼物面板覆盖
+### 礼物面板布局重构
 
 修改前：
 
@@ -74,7 +74,7 @@ document.documentElement.dataset.bliveSpecialBlancRedirectVersion
 document.documentElement.dataset.bliveVideoBitrateStatsVersion
 ```
 
-礼物面板覆盖脚本主要注入样式，不暴露版本字段；可通过 Tampermonkey 管理页确认版本 `1.1.3`。
+礼物面板布局重构脚本主要注入样式，不暴露版本字段；可通过 Tampermonkey 管理页确认版本 `1.1.4`。
 
 ## 许可证
 

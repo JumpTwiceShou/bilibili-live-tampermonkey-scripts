@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Bilibili Live Gift Panel Overlay
-// @name:zh-CN   B站直播礼物面板覆盖
+// @name:zh-CN   B站直播礼物面板布局重构
 // @namespace    https://live.bilibili.com/
-// @version      1.1.3
+// @version      1.1.4
 // @description  Keep the expanded gift panel overlaid on top of the player with a fixed two-row height.
-// @description:zh-CN 将 B 站直播礼物大面板覆盖在播放器右下角，固定两行高度，避免挤压视频画面。
+// @description:zh-CN 重构 B 站直播礼物大面板布局，将面板固定在播放器右下角并保持两行高度，避免挤压视频画面。
 // @match        https://live.bilibili.com/*
 // @run-at       document-end
 // @grant        none
