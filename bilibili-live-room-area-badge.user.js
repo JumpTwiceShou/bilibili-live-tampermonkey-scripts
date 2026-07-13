@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.19
+// @version      1.0.20
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -16,7 +16,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.19';
+  const VERSION = '1.0.20';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -43,8 +43,12 @@
     '[aria-label*="大航海"]'
   ];
   const SOCIAL_ANCHOR_KEYWORDS = ['关注', '粉丝', '大航海', '航海'];
+  const SOCIAL_ANCHOR_SELECTOR = SOCIAL_ANCHOR_SELECTORS.join(',');
+  const HEADER_INTERACTIVE_SELECTOR = 'button, a, [role="button"]';
   const RETRY_MS = 1500;
   const SLOW_RECHECK_MS = 8000;
+  const INFO_RECHECK_MS = 60000;
+  const REQUEST_TIMEOUT_MS = 12000;
 
   const state = {
     roomId: '',
@@ -54,11 +58,15 @@
     attachTimer: 0,
     mountWaitTimer: 0,
     refreshTimer: 0,
+    refreshDueAt: 0,
     slowTimer: 0,
+    requestId: 0,
+    requestController: null,
+    lastInfoAt: 0,
     lastPath: location.href
   };
 
-  if (!isLiveRoomPage()) {
+  if (!isLiveRoomPage() || isSpecialTopShell()) {
     return;
   }
 
@@ -176,11 +184,27 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return /^\/(?:blanc\/)?\d+(?:\/|$)/.test(location.pathname);
   }
 
+  function isSpecialTopShell() {
+    return window.top === window
+      && Boolean(document.querySelector('.live-non-revenue-player'))
+      && !document.querySelector(HEADER_MOUNT_SELECTOR);
+  }
+
+  function cancelAreaRequest() {
+    state.requestId += 1;
+    if (state.requestController) {
+      state.requestController.abort();
+      state.requestController = null;
+    }
+    state.loadingRoomId = '';
+  }
+
   function resetAreaState() {
+    cancelAreaRequest();
     state.roomId = '';
     state.infoKey = '';
     state.info = null;
-    state.loadingRoomId = '';
+    state.lastInfoAt = 0;
   }
 
   function removeHost() {
@@ -306,6 +330,9 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     for (const selector of selectors) {
       const nodes = document.querySelectorAll(selector);
       for (const node of nodes) {
+        if (node.closest(`#${HOST_ID}`)) {
+          continue;
+        }
         if (!isVisibleBox(node)) {
           continue;
         }
@@ -413,14 +440,11 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   function findHeaderSocialAnchor(mount, host) {
     const rightModules = document.querySelector(HEADER_RIGHT_MODULES_SELECTOR);
     const candidates = [];
-    for (const selector of SOCIAL_ANCHOR_SELECTORS) {
-      const nodes = mount.querySelectorAll(selector);
-      for (const node of nodes) {
-        addSocialAnchorCandidate(candidates, mount, host, rightModules, node);
-      }
+    for (const node of mount.querySelectorAll(SOCIAL_ANCHOR_SELECTOR)) {
+      addSocialAnchorCandidate(candidates, mount, host, rightModules, node);
     }
 
-    const keywordNodes = mount.querySelectorAll('*');
+    const keywordNodes = mount.querySelectorAll(HEADER_INTERACTIVE_SELECTOR);
     for (const current of keywordNodes) {
       const text = compactText(current.textContent || current.getAttribute('title') || current.getAttribute('aria-label'));
       if (SOCIAL_ANCHOR_KEYWORDS.some((keyword) => text.includes(keyword))) {
@@ -781,10 +805,11 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return '';
   }
 
-  async function fetchJson(url) {
+  async function fetchJson(url, signal) {
     const response = await fetch(url.href, {
       credentials: 'include',
-      cache: 'no-store'
+      cache: 'no-store',
+      signal
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -792,20 +817,20 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return response.json();
   }
 
-  async function fetchAreaByEndpoint(baseUrl, paramName, roomId) {
+  async function fetchAreaByEndpoint(baseUrl, paramName, roomId, signal) {
     const url = new URL(baseUrl);
     url.searchParams.set(paramName, roomId);
-    const payload = await fetchJson(url);
+    const payload = await fetchJson(url, signal);
     if (payload && payload.code !== 0) {
       return null;
     }
     return findAreaObject(payload, 0, new Set());
   }
 
-  async function fetchResolvedRoomId(roomId) {
+  async function fetchResolvedRoomId(roomId, signal) {
     const url = new URL(API_ROOM_INIT);
     url.searchParams.set('id', roomId);
-    const payload = await fetchJson(url);
+    const payload = await fetchJson(url, signal);
     if (!payload || payload.code !== 0 || !payload.data) {
       return '';
     }
@@ -813,25 +838,25 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return isRoomId(resolved) ? String(resolved) : '';
   }
 
-  async function loadAreaInfo(roomId) {
+  async function loadAreaInfo(roomId, signal) {
     const attempts = [
-      () => fetchAreaByEndpoint(API_ROOM_GET_INFO, 'room_id', roomId),
-      () => fetchAreaByEndpoint(API_GET_INFO_BY_ROOM, 'room_id', roomId)
+      () => fetchAreaByEndpoint(API_ROOM_GET_INFO, 'room_id', roomId, signal),
+      () => fetchAreaByEndpoint(API_GET_INFO_BY_ROOM, 'room_id', roomId, signal)
     ];
 
     let resolvedRoomId = '';
     attempts.push(async () => {
-      resolvedRoomId = await fetchResolvedRoomId(roomId);
+      resolvedRoomId = await fetchResolvedRoomId(roomId, signal);
       if (!resolvedRoomId || resolvedRoomId === roomId) {
         return null;
       }
-      return fetchAreaByEndpoint(API_ROOM_GET_INFO, 'room_id', resolvedRoomId);
+      return fetchAreaByEndpoint(API_ROOM_GET_INFO, 'room_id', resolvedRoomId, signal);
     });
     attempts.push(async () => {
       if (!resolvedRoomId || resolvedRoomId === roomId) {
         return null;
       }
-      return fetchAreaByEndpoint(API_GET_INFO_BY_ROOM, 'room_id', resolvedRoomId);
+      return fetchAreaByEndpoint(API_GET_INFO_BY_ROOM, 'room_id', resolvedRoomId, signal);
     });
 
     for (const attempt of attempts) {
@@ -841,6 +866,9 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
           return info;
         }
       } catch (error) {
+        if (signal && signal.aborted) {
+          throw error;
+        }
         // Try the next public room endpoint; Bilibili changes response shapes occasionally.
       }
     }
@@ -862,13 +890,33 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   }
 
   function scheduleRefresh(delay) {
+    const wait = Math.max(0, Number(delay) || 0);
+    const dueAt = Date.now() + wait;
     if (state.refreshTimer) {
-      return;
+      if (dueAt >= state.refreshDueAt) {
+        return;
+      }
+      window.clearTimeout(state.refreshTimer);
     }
+    state.refreshDueAt = dueAt;
     state.refreshTimer = window.setTimeout(() => {
       state.refreshTimer = 0;
+      state.refreshDueAt = 0;
       refreshArea();
-    }, delay || 0);
+    }, wait);
+  }
+
+  function ownsAreaRequest(requestId, roomId, controller) {
+    return state.requestId === requestId
+      && state.roomId === roomId
+      && state.requestController === controller;
+  }
+
+  function isCurrentAreaRequest(requestId, roomId, controller) {
+    return ownsAreaRequest(requestId, roomId, controller)
+      && !controller.signal.aborted
+      && isLiveRoomPage()
+      && detectRoomId() === roomId;
   }
 
   async function refreshArea() {
@@ -888,6 +936,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         if (key !== state.infoKey || host.dataset.bliveRoomAreaBadgeKey !== key) {
           state.infoKey = key;
           state.info = fromState;
+          state.lastInfoAt = Date.now();
           renderArea(host, fromState);
           scheduleAttach();
         }
@@ -903,17 +952,28 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     if (state.loadingRoomId === roomId) {
       return;
     }
-    if (state.roomId !== roomId) {
-      state.roomId = roomId;
-      if (!state.infoKey) {
-        removeHost();
-      }
+    if (state.roomId && state.roomId !== roomId) {
+      resetAreaState();
+      removeHost();
     }
+    state.roomId = roomId;
 
+    if (state.requestController) {
+      cancelAreaRequest();
+    }
+    const controller = new AbortController();
+    const requestId = state.requestId + 1;
+    state.requestId = requestId;
+    state.requestController = controller;
     state.loadingRoomId = roomId;
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const info = withTitleFallback(await loadAreaInfo(roomId));
+      const info = withTitleFallback(await loadAreaInfo(roomId, controller.signal));
+      if (!isCurrentAreaRequest(requestId, roomId, controller)) {
+        return;
+      }
       state.loadingRoomId = '';
+      state.requestController = null;
       if (!info) {
         if (!state.infoKey) {
           removeHost();
@@ -923,19 +983,39 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       }
 
       const key = areaKey(info);
+      state.infoKey = key;
+      state.info = info;
+      state.lastInfoAt = Date.now();
       const host = getHost();
-      if (key !== state.infoKey || host.dataset.bliveRoomAreaBadgeKey !== key) {
-        state.infoKey = key;
-        state.info = info;
+      if (host.dataset.bliveRoomAreaBadgeKey !== key) {
         renderArea(host, info);
+      }
+      if (!host.isConnected || host.dataset.bliveRoomAreaBadgeKey !== key) {
         scheduleAttach();
       }
     } catch (error) {
+      if (
+        !ownsAreaRequest(requestId, roomId, controller)
+        || !isLiveRoomPage()
+        || detectRoomId() !== roomId
+      ) {
+        return;
+      }
       state.loadingRoomId = '';
+      state.requestController = null;
       if (!state.infoKey) {
         removeHost();
       }
       scheduleRefresh(SLOW_RECHECK_MS);
+    } finally {
+      window.clearTimeout(timeout);
+      if (ownsAreaRequest(requestId, roomId, controller) && controller.signal.aborted) {
+        state.loadingRoomId = '';
+        state.requestController = null;
+        if (isLiveRoomPage() && detectRoomId() === roomId) {
+          scheduleRefresh(SLOW_RECHECK_MS);
+        }
+      }
     }
   }
 
@@ -977,14 +1057,67 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     }, 0);
   }
 
+  function refreshTitleFromPage() {
+    if (!state.info) {
+      return;
+    }
+    const title = findTitleInPage();
+    if (!title || title === state.info.title) {
+      return;
+    }
+    const info = { ...state.info, title };
+    const key = areaKey(info);
+    state.info = info;
+    state.infoKey = key;
+    const host = getHost();
+    renderArea(host, info);
+    scheduleAttach();
+  }
+
+  function nodeIsInHeader(node) {
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    return node.id === 'head-info-vm'
+      || node.id === HOST_ID
+      || Boolean(node.closest('#head-info-vm'));
+  }
+
+  function nodeContainsHeader(node) {
+    return node instanceof Element
+      && Boolean(node.querySelector(`#head-info-vm, #${HOST_ID}`));
+  }
+
+  function mutationsTouchHeader(records) {
+    for (const record of records) {
+      if (nodeIsInHeader(record.target)) {
+        return true;
+      }
+      for (const node of record.addedNodes) {
+        if (nodeIsInHeader(node) || nodeContainsHeader(node)) {
+          return true;
+        }
+      }
+      for (const node of record.removedNodes) {
+        if (nodeIsInHeader(node) || nodeContainsHeader(node)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function bindObservers() {
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((records) => {
       if (!isLiveRoomPage()) {
         removeHost();
         return;
       }
-      scheduleAttach();
-      if (!state.roomId || !state.infoKey) {
+      const touchesHeader = mutationsTouchHeader(records);
+      if (touchesHeader) {
+        scheduleAttach();
+      }
+      if (touchesHeader && !state.infoKey && !state.loadingRoomId) {
         scheduleRefresh(250);
       }
     });
@@ -1005,8 +1138,10 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         removeHost();
         return;
       }
-      const host = getHost();
-      host.classList.toggle('blive-room-area-badge-hidden', Boolean(document.fullscreenElement));
+      const host = document.getElementById(HOST_ID);
+      if (host) {
+        host.classList.toggle('blive-room-area-badge-hidden', Boolean(document.fullscreenElement));
+      }
     });
 
     state.slowTimer = window.setInterval(() => {
@@ -1014,10 +1149,19 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
         removeHost();
         return;
       }
-      scheduleAttach();
       const roomId = detectRoomId();
       if (roomId && roomId !== state.roomId) {
         scheduleRefresh();
+        return;
+      }
+      refreshTitleFromPage();
+      if (state.info && Date.now() - state.lastInfoAt >= INFO_RECHECK_MS) {
+        scheduleRefresh();
+      }
+      const host = document.getElementById(HOST_ID);
+      const mountInfo = findMount();
+      if (state.info && (!host || !mountInfo || !mountInfo.node.contains(host))) {
+        scheduleAttach();
       }
     }, SLOW_RECHECK_MS);
   }

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视频码率换源测试页</title>
+  <style>
+    body {
+      margin: 24px;
+      background: #20242d;
+      color: #fff;
+      font-family: sans-serif;
+    }
+
+    .web-player-video-info-panel {
+      width: 520px;
+      padding: 16px;
+      background: #11151d;
+    }
+
+    .web-player-video-info-panel > div {
+      min-height: 28px;
+    }
+  </style>
+  <script>
+    class FixtureSourceBuffer extends EventTarget {
+      constructor() {
+        super();
+        this.end = 0;
+      }
+
+      get buffered() {
+        const end = this.end;
+        return {
+          length: end > 0 ? 1 : 0,
+          start() {
+            return 0;
+          },
+          end() {
+            return end;
+          }
+        };
+      }
+
+      appendBuffer() {
+        this.end += 2;
+        window.setTimeout(() => this.dispatchEvent(new Event('updateend')), 0);
+      }
+    }
+
+    class FixtureMediaSource {
+      addSourceBuffer() {
+        return new FixtureSourceBuffer();
+      }
+    }
+
+    window.SourceBuffer = FixtureSourceBuffer;
+    window.MediaSource = FixtureMediaSource;
+  </script>
+</head>
+<body>
+  <video></video>
+  <section class="web-player-video-info-panel">
+    <div id="p-video-info-droppedFrames">
+      <span class="web-player-line-data">Decoded Frames: 60 FPS</span>
+    </div>
+    <div id="p-video-info-audioInfo">Audio Info: 128 Kbps</div>
+  </section>
+  <script src="/bilibili-live-video-bitrate-stats.user.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      window.setTimeout(() => {
+        const mediaSource = new MediaSource();
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.640028,mp4a.40.2"');
+        sourceBuffer.appendBuffer(new ArrayBuffer(1000000));
+      }, 50);
+
+      window.setTimeout(() => {
+        const value = document.querySelector('.blive-video-bitrate-stats-value');
+        document.documentElement.dataset.fixtureFirstBitrate = value?.textContent || '';
+      }, 1200);
+
+      window.setTimeout(() => {
+        document.querySelector('video').replaceWith(document.createElement('video'));
+        document.getElementById('p-video-info-audioInfo').textContent = 'Audio Info: --';
+        const mediaSource = new MediaSource();
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.640028,mp4a.40.2"');
+        sourceBuffer.appendBuffer(new ArrayBuffer(1000000));
+      }, 1400);
+
+      window.setTimeout(() => {
+        const value = document.querySelector('.blive-video-bitrate-stats-value');
+        document.documentElement.dataset.fixtureSecondBitrate = value?.textContent || '';
+        document.documentElement.dataset.fixtureComplete = '1';
+      }, 2700);
+    });
+  </script>
+</body>
+</html>

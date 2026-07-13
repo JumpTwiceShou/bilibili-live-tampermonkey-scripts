@@ -6,12 +6,12 @@
 
 | 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
 | --- | --- | --- | --- | --- |
-| B站直播礼物面板布局重构 | 1.1.4 | 重构礼物大面板布局，将面板固定在播放器右下角并保持两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
-| B站直播间标题与分区显示 | 1.0.19 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581316-bilibili-live-room-area-badge) |
-| B站直播视频统计面板画面码率 | 1.0.1 | 在播放器右键视频统计信息面板的 Decoded Frames 行旁显示估算画面码率。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-video-bitrate-stats.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581368-b站直播视频统计面板画面码率) |
-| B站特殊聚合直播跳转普通播放器 | 1.0.0 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581317-bilibili-live-special-blanc-redirect) |
-| B站特殊聚合页普通直播间布局（保留列表） | 2.1.8 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581318-bilibili-live-special-layout) |
-| B站特殊聚合页普通直播间布局（隐藏列表） | 2.1.8-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581319-bilibili-live-special-layout-no-list) |
+| B站直播礼物面板布局重构 | 1.1.5 | 重构礼物大面板布局，将面板固定在播放器右下角并保持两行高度，避免挤压视频画面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
+| B站直播间标题与分区显示 | 1.0.20 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581316-bilibili-live-room-area-badge) |
+| B站直播视频统计面板画面码率 | 1.1.0 | 在播放器右键视频统计信息面板的 Decoded Frames 行旁显示估算画面码率。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-video-bitrate-stats.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581368-b站直播视频统计面板画面码率) |
+| B站特殊聚合直播跳转普通播放器 | 1.0.1 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581317-bilibili-live-special-blanc-redirect) |
+| B站特殊聚合页普通直播间布局（保留列表） | 2.2.1 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，列表默认折叠一次，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581318-bilibili-live-special-layout) |
+| B站特殊聚合页普通直播间布局（隐藏列表） | 2.2.1-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581319-bilibili-live-special-layout-no-list) |
 
 ## 使用方法
 
@@ -68,13 +68,25 @@
 启用脚本后，可以在浏览器控制台检查对应版本：
 
 ```js
+document.documentElement.dataset.bliveGiftPanelOverlayVersion
 document.documentElement.dataset.bliveSpecialLayoutVersion
 document.documentElement.dataset.bliveRoomAreaBadgeVersion
 document.documentElement.dataset.bliveSpecialBlancRedirectVersion
 document.documentElement.dataset.bliveVideoBitrateStatsVersion
 ```
 
-礼物面板布局重构脚本主要注入样式，不暴露版本字段；可通过 Tampermonkey 管理页确认版本 `1.1.4`。
+## 开发与校验
+
+`bilibili-live-special-layout.user.js` 是特殊布局的唯一维护源；隐藏列表版本由生成器产出，不要直接编辑。
+
+```powershell
+node scripts/generate-special-layout-no-list.mjs
+node scripts/validate-userscripts.mjs
+```
+
+生成器的 `--check` 模式只检查产物是否同步。静态校验会检查全部用户脚本语法、元数据与运行时版本一致性、隐藏列表生成一致性，以及布局收缩、视口边界和侧栏 URL 安全约束。
+
+如本机可解析 Playwright，可运行 `node debug-special-page.mjs` 做真实页面验证。脚本默认使用无头 Chrome；可通过 `PAGE_URL`、`SCRIPT_PATH`、`EXPECTED_MODE`、`HEADLESS=0`、`SKIP_WEB_MODE=1`、`BROWSER_CHANNEL=bundled` 或 `PLAYWRIGHT_ENTRY` 调整运行环境。
 
 ## 许可证
 

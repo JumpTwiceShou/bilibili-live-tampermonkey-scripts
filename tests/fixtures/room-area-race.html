@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>分区请求竞态测试页</title>
+  <style>
+    body {
+      margin: 24px;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    .normal-row-ctnr {
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .follow-ctnr,
+    .right-fixed-modules {
+      min-width: 80px;
+      min-height: 28px;
+    }
+
+    .right-fixed-modules {
+      margin-left: auto;
+    }
+  </style>
+  <script>
+    history.replaceState(null, '', '/123');
+    document.documentElement.dataset.fixtureRequestRooms = '';
+    document.documentElement.dataset.fixtureAbortedRequests = '0';
+
+    function roomPayload(roomId) {
+      const current = roomId === '456';
+      return {
+        code: 0,
+        data: {
+          room_id: roomId,
+          title: current ? '新直播间标题' : '旧直播间标题',
+          parent_area_id: current ? 20 : 10,
+          parent_area_name: current ? '新父分区' : '旧父分区',
+          area_id: current ? 21 : 11,
+          area_name: current ? '新子分区' : '旧子分区'
+        }
+      };
+    }
+
+    function responseFor(roomId) {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return roomPayload(roomId);
+        }
+      };
+    }
+
+    window.fetch = (input, options = {}) => {
+      const url = new URL(String(input));
+      const roomId = url.searchParams.get('room_id') || url.searchParams.get('id') || '';
+      const rooms = document.documentElement.dataset.fixtureRequestRooms;
+      document.documentElement.dataset.fixtureRequestRooms = rooms ? `${rooms},${roomId}` : roomId;
+
+      if (roomId !== '123') {
+        return Promise.resolve(responseFor(roomId));
+      }
+
+      return new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => resolve(responseFor(roomId)), 600);
+        const abort = () => {
+          window.clearTimeout(timer);
+          const count = Number(document.documentElement.dataset.fixtureAbortedRequests || 0) + 1;
+          document.documentElement.dataset.fixtureAbortedRequests = String(count);
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        if (options.signal?.aborted) {
+          abort();
+        } else {
+          options.signal?.addEventListener('abort', abort, { once: true });
+        }
+      });
+    };
+  </script>
+</head>
+<body>
+  <section id="head-info-vm">
+    <div class="normal-row-ctnr">
+      <button type="button" class="follow-ctnr">关注</button>
+      <div class="right-fixed-modules">右侧模块</div>
+    </div>
+  </section>
+  <script src="/bilibili-live-room-area-badge.user.js"></script>
+  <script>
+    window.setTimeout(() => history.pushState(null, '', '/456'), 50);
+  </script>
+</body>
+</html>

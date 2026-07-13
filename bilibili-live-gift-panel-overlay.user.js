@@ -2,7 +2,7 @@
 // @name         Bilibili Live Gift Panel Overlay
 // @name:zh-CN   B站直播礼物面板布局重构
 // @namespace    https://live.bilibili.com/
-// @version      1.1.4
+// @version      1.1.5
 // @description  Keep the expanded gift panel overlaid on top of the player with a fixed two-row height.
 // @description:zh-CN 重构 B 站直播礼物大面板布局，将面板固定在播放器右下角并保持两行高度，避免挤压视频画面。
 // @match        https://live.bilibili.com/*
@@ -15,6 +15,7 @@
 (function () {
   'use strict';
 
+  const VERSION = '1.1.5';
   const STYLE_ID = 'tm-bilibili-live-gift-panel-overlay';
   const OPEN_HOST_SELECTOR =
     'body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open, ' +
@@ -23,11 +24,15 @@
   const IGNORE_OUTSIDE_SELECTOR =
     '.container-tool-paddingbox, .gift-control-section, .z-gift-sender-panel, .gift-sender-panel';
   const CLOSE_BUTTON_SELECTORS = [
-    '[aria-label*="关闭"]',
-    '[title*="关闭"]',
-    '[class*="close" i]',
-    '[class*="Close"]',
+    'button[aria-label*="关闭"]',
+    '[role="button"][aria-label*="关闭"]',
+    'button[title*="关闭"]',
+    '[role="button"][title*="关闭"]',
+    'button[class*="close" i]',
+    '[role="button"][class*="close" i]',
   ];
+
+  document.documentElement.dataset.bliveGiftPanelOverlayVersion = VERSION;
 
   if (document.getElementById(STYLE_ID)) {
     return;
@@ -145,12 +150,21 @@ body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg
       return;
     }
 
-    host.classList.remove('tool-open');
+    // Let Bilibili's own bubbling outside-click handler update component state first.
+    // The class removal is only a compatibility fallback for layouts without one.
+    window.setTimeout(() => {
+      if (host.isConnected && host.classList.contains('tool-open')) {
+        host.classList.remove('tool-open');
+      }
+    }, 0);
   }
 
   document.addEventListener(
     'pointerdown',
     (event) => {
+      if (event.button !== 0) {
+        return;
+      }
       const host = getOpenGiftHost();
 
       if (!host || isInsideIgnoredArea(event)) {

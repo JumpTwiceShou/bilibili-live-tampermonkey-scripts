@@ -2,7 +2,7 @@
 // @name         Bilibili Live Special Blanc Redirect
 // @name:zh-CN   B站特殊聚合直播跳转普通播放器
 // @namespace    https://live.bilibili.com/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Redirect special live pages to their embedded /blanc/ player page.
 // @description:zh-CN 识别特殊聚合直播页内嵌的 /blanc/ 播放器并跳转到普通播放器页面。
 // @match        https://live.bilibili.com/*
@@ -22,13 +22,14 @@
     return;
   }
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const SKIP_PARAM = 'blive_no_blanc_redirect';
   const ROOM_PATH_RE = /^\/\d+\/?$/;
   const BLANC_PATH_RE = /^\/blanc\/(\d+)\/?$/;
+  const MAX_WATCH_MS = 30000;
   let redirected = false;
   let observer = null;
-  let retryTimer = 0;
+  let stopTimer = 0;
 
   function isSkippablePage() {
     if (location.pathname.startsWith('/blanc/')) {
@@ -69,26 +70,62 @@
     return '';
   }
 
-  function redirectIfSpecial() {
+  function findBlancUrlInNode(node) {
+    if (!(node instanceof Element)) {
+      return '';
+    }
+    if (node.matches('iframe')) {
+      const direct = normalizeBlancUrl(node.getAttribute('src') || node.src || '');
+      if (direct) {
+        return direct;
+      }
+    }
+    return findBlancUrl(node);
+  }
+
+  function findBlancUrlInMutations(records) {
+    for (const record of records) {
+      if (record.type === 'attributes') {
+        const target = findBlancUrlInNode(record.target);
+        if (target) {
+          return target;
+        }
+        continue;
+      }
+      for (const node of record.addedNodes) {
+        const target = findBlancUrlInNode(node);
+        if (target) {
+          return target;
+        }
+      }
+    }
+    return '';
+  }
+
+  function cleanup() {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    if (stopTimer) {
+      window.clearTimeout(stopTimer);
+      stopTimer = 0;
+    }
+  }
+
+  function redirectIfSpecial(targetHint) {
     if (redirected || isSkippablePage() || !document.documentElement) {
       return false;
     }
 
-    const target = findBlancUrl(document);
+    const target = targetHint || findBlancUrl(document);
     if (!target || target === location.href) {
       return false;
     }
 
     redirected = true;
     document.documentElement.dataset.bliveSpecialBlancRedirectVersion = VERSION;
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-    if (retryTimer) {
-      window.clearInterval(retryTimer);
-      retryTimer = 0;
-    }
+    cleanup();
     location.replace(target);
     return true;
   }
@@ -102,23 +139,24 @@
       return;
     }
 
-    redirectIfSpecial();
-    observer = new MutationObserver(() => redirectIfSpecial());
+    if (redirectIfSpecial()) {
+      return;
+    }
+    observer = new MutationObserver((records) => {
+      const target = findBlancUrlInMutations(records);
+      if (target) {
+        redirectIfSpecial(target);
+      }
+    });
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ['src']
     });
-    retryTimer = window.setInterval(() => {
-      if (redirectIfSpecial()) {
-        return;
-      }
-      if (document.readyState === 'complete') {
-        window.clearInterval(retryTimer);
-        retryTimer = 0;
-      }
-    }, 500);
+    stopTimer = window.setTimeout(cleanup, MAX_WATCH_MS);
+    window.addEventListener('load', () => redirectIfSpecial(), { once: true });
+    window.addEventListener('pagehide', cleanup, { once: true });
   }
 
   start();

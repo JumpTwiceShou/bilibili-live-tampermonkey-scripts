@@ -3,7 +3,7 @@
 // @name:en      Bilibili Live Video Bitrate Stats
 // @name:zh-CN   B站直播视频统计面板画面码率
 // @namespace    https://live.bilibili.com/
-// @version      1.0.1
+// @version      1.1.0
 // @description  在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
 // @description:en Show estimated video bitrate next to FPS in Bilibili Live's video stats panel.
 // @description:zh-CN 在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
@@ -28,7 +28,7 @@
     configurable: false
   });
 
-  const VERSION = '1.0.1';
+  const VERSION = '1.1.0';
   const STYLE_ID = 'blive-video-bitrate-stats-style';
   const VALUE_CLASS = 'blive-video-bitrate-stats-value';
   const DROPPED_FRAMES_ROW_ID = 'p-video-info-droppedFrames';
@@ -50,8 +50,6 @@
     lastSampleAt: 0,
     lastVideo: null,
     audioBitrateBps: 0,
-    hasMixedSamples: false,
-    hasUnknownAudioMixedSamples: false,
     updateTimer: 0,
     attachRaf: 0,
     observer: null,
@@ -60,8 +58,16 @@
   };
 
   exposeVersion();
-  installMediaSourceHooks();
+  startMediaSourceHooks();
   startDomHooks();
+
+  function startMediaSourceHooks() {
+    try {
+      installMediaSourceHooks();
+    } catch (_err) {
+      retryMediaSourceHooks();
+    }
+  }
 
   function exposeVersion() {
     if (document.documentElement) {
@@ -142,7 +148,7 @@
     state.hookRetryCount += 1;
     state.hookRetryTimer = window.setTimeout(() => {
       state.hookRetryTimer = 0;
-      installMediaSourceHooks();
+      startMediaSourceHooks();
     }, HOOK_RETRY_MS);
   }
 
@@ -174,7 +180,7 @@
         bytes,
         seconds,
         mixed: meta.hasVideo && meta.hasAudio,
-        audioKnown: Boolean(state.audioBitrateBps)
+        audioBitrateBps: state.audioBitrateBps
       });
     };
 
@@ -213,7 +219,7 @@
   function getPrimaryVideo() {
     const video = document.querySelector('video');
     if (video && state.lastVideo && video !== state.lastVideo) {
-      resetSamples();
+      resetSamples(true);
     }
     if (video) {
       state.lastVideo = video;
@@ -282,7 +288,7 @@
       seconds: sample.seconds,
       wallTime: Date.now(),
       mixed: sample.mixed,
-      audioKnown: sample.audioKnown
+      audioBitrateBps: sample.audioBitrateBps
     });
     state.totalBytes += sample.bytes;
     state.totalSeconds += sample.seconds;
@@ -316,13 +322,14 @@
     state.totalBytes = Math.max(0, state.totalBytes);
   }
 
-  function resetSamples() {
+  function resetSamples(resetAudio) {
     samples.length = 0;
     state.totalSeconds = 0;
     state.totalBytes = 0;
     state.lastSampleAt = 0;
-    state.hasMixedSamples = false;
-    state.hasUnknownAudioMixedSamples = false;
+    if (resetAudio) {
+      state.audioBitrateBps = 0;
+    }
     scheduleTextUpdate();
   }
 
@@ -334,20 +341,19 @@
       return null;
     }
 
-    let hasMixedSamples = false;
+    let audioBits = 0;
     let hasUnknownAudioMixedSamples = false;
     for (const sample of samples) {
       if (sample.mixed) {
-        hasMixedSamples = true;
-        if (!state.audioBitrateBps) {
+        if (sample.audioBitrateBps > 0) {
+          audioBits += sample.audioBitrateBps * sample.seconds;
+        } else {
           hasUnknownAudioMixedSamples = true;
         }
       }
     }
 
-    const combinedBps = (state.totalBytes * 8) / state.totalSeconds;
-    const audioBps = hasMixedSamples && state.audioBitrateBps ? state.audioBitrateBps : 0;
-    const videoBps = Math.max(0, combinedBps - audioBps);
+    const videoBps = Math.max(0, ((state.totalBytes * 8) - audioBits) / state.totalSeconds);
     return {
       mbps: videoBps / 1000000,
       approx: hasUnknownAudioMixedSamples
@@ -367,14 +373,45 @@
     scheduleAttach();
     scheduleTextUpdate();
     if (!state.observer && document.documentElement) {
-      state.observer = new MutationObserver(() => {
-        scheduleAttach();
+      state.observer = new MutationObserver((records) => {
+        if (mutationsTouchStatsPanel(records)) {
+          scheduleAttach();
+        }
       });
       state.observer.observe(document.documentElement, {
         childList: true,
         subtree: true
       });
     }
+  }
+
+  function nodeChangesStatsMount(node) {
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    const selector = [
+      STATS_PANEL_SELECTOR,
+      `#${DROPPED_FRAMES_ROW_ID}`,
+      `#${AUDIO_INFO_ROW_ID}`,
+      `.${VALUE_CLASS}`
+    ].join(',');
+    return node.matches(selector) || Boolean(node.querySelector(selector));
+  }
+
+  function mutationsTouchStatsPanel(records) {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (nodeChangesStatsMount(node)) {
+          return true;
+        }
+      }
+      for (const node of record.removedNodes) {
+        if (nodeChangesStatsMount(node)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   function ensureStyle() {
@@ -433,6 +470,7 @@
     }
 
     updateValueNode(valueNode);
+    scheduleTextUpdate();
   }
 
   function readAudioBitrate() {
@@ -451,7 +489,9 @@
     const kbpsMatch = text.match(/(\d+(?:\.\d+)?)\s*Kbps/i);
     if (kbpsMatch) {
       state.audioBitrateBps = Number(kbpsMatch[1]) * 1000;
+      return;
     }
+    state.audioBitrateBps = 0;
   }
 
   function scheduleTextUpdate() {
@@ -461,8 +501,9 @@
 
     state.updateTimer = window.setTimeout(() => {
       state.updateTimer = 0;
-      updateVisibleText();
-      scheduleTextUpdate();
+      if (updateVisibleText()) {
+        scheduleTextUpdate();
+      }
     }, UPDATE_MS);
   }
 
@@ -471,9 +512,10 @@
     readAudioBitrate();
     const valueNode = document.querySelector(`#${DROPPED_FRAMES_ROW_ID} .${VALUE_CLASS}`);
     if (!valueNode) {
-      return;
+      return false;
     }
     updateValueNode(valueNode);
+    return true;
   }
 
   function updateValueNode(valueNode) {

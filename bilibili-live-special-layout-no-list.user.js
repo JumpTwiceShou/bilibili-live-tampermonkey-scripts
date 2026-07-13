@@ -2,7 +2,7 @@
 // @name         Bilibili Live Special Layout (No List)
 // @name:zh-CN   B站特殊聚合页普通直播间布局（隐藏列表）
 // @namespace    https://live.bilibili.com/
-// @version      2.1.8-no-list
+// @version      2.2.1-no-list
 // @description  Special-page only, fixed no-list mode + native-like sidebar.
 // @description:zh-CN 将 B 站特殊聚合直播页重排为接近普通直播间的宽屏布局，隐藏聚合列表并补齐关注侧栏和回到播放器按钮。
 // @match        https://live.bilibili.com/*
@@ -12,6 +12,7 @@
 // @license      GPL-3.0-only
 // @supportURL   https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
+// Generated from bilibili-live-special-layout.user.js; do not edit directly.
 
 (function () {
   'use strict';
@@ -20,15 +21,20 @@
     return;
   }
 
+  const INSTALL_FLAG = '__bliveSpecialLayoutInstalled';
+  if (window[INSTALL_FLAG]) {
+    return;
+  }
+  Object.defineProperty(window, INSTALL_FLAG, {
+    value: true,
+    configurable: false
+  });
+
   const MODE_KEY = 'blive:special-layout-mode';
+  const VERSION = '2.2.1-no-list';
   const VALID_MODES = new Set(['keep-list', 'no-list']);
   const DEFAULT_MODE = 'keep-list';
   const FORCE_MODE = 'no-list';
-
-  const OFFICIAL_SIDEBAR_CSS_URLS = [
-    'https://s1.hdslb.com/bfs/static/blive/blfe-live-room/static/css/app.0c74c70d45a0191b4aa8.vip.css',
-    'https://s1.hdslb.com/bfs/static/blive/blfe-live-room/static/css/1061.160ae97049729966266b.vip.css'
-  ];
 
   const LIVE_FOLLOW_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/GetWebList?hit_ab=true';
   const LAB_URL = 'https://api.live.bilibili.com/xlive/web-ucenter/v1/labs/InfoPlugs';
@@ -37,30 +43,49 @@
   const HOST_CLASS = 'blive-special-layout-host';
   const ROOT_CLASS = 'blive-special-layout-root';
   const DATA_KEY = 'bliveSpecialShellExtra';
+  const BASE_WIDTH_KEY = 'bliveSpecialBaseWidth';
+  const BASE_RATIO_KEY = 'bliveSpecialBaseRatio';
+  const VIEWPORT_EDGE_GUTTER = 32;
+  const FOLLOW_CACHE_MS = 60000;
+  const MAX_FOLLOW_ITEMS = 100;
+  const MAX_INIT_WATCH_MS = 30000;
+  const MAX_COLLAPSE_WATCH_MS = 15000;
   const NORMAL_ROOM_MIN_BODY_WIDTH = 980;
   const NORMAL_ROOM_MAX_BODY_WIDTH = 3420;
   const NORMAL_ROOM_VIEWPORT_GUTTER = 100;
   const NORMAL_ROOM_VERTICAL_RESERVED = 136 + 78 + 64;
   const NORMAL_ROOM_EXTRA_GUTTER = 12 + 100;
   const SPECIAL_PLAYER_SIZE_RATIO = 1.4;
-  const LAB_ICON_URL = 'https://i1.hdslb.com/bfs/static/blive/blfe-live-room/static/img/laboratory.11696de..svg';
-  const MORE_ARROW_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAATCAYAAACp65zuAAAACXBIWXMAABYlAAAWJQFJUiTwAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAC0SURBVHgBjdK9DcIwEAXgO7ugZRQCAqX0KC4QVQo2SNiAnxaxAmICoINIgYwCPXKwjUCAk7u8wnqyPltXHGg97epxooCJgM5jiwL3Fqc0rHDnisUZhWVZ5Kf+IEbbFSKqXjSC8pIfA+iOa3E+cFi+C4fl9ysKy/9ZmrCEmoR4eK+FAQaMBRAxYCpfEG6NUE+S1P6UeWdgIXiEs816NUceLV+9DfqBFPpADvn7NsjF7WPEIZcnb4ttz404aTsAAAAASUVORK5CYII=';
-  const MORE_ARROW_ICON_HOVER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAATCAYAAACp65zuAAAACXBIWXMAABYlAAAWJQFJUiTwAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACESURBVHgB3dLBDYAgDAXQXzybeHEQN3AJB3ECcQQncACjxgkcxQHQxAWkIsQjcFYSkn94KTQt0G8ZBlUicgSydEZCK8ajCUNNi03EMoaBUUlMO9v7YUxBTOQqMtcUrezwKYJQCHaBAnA2f2MzBPu07vzobWZQ8mfo2cdLFzZd3KLKvfAGrvyK4hn9U0kAAAAASUVORK5CYII=';
-  const PINK_ICON_GIF = 'data:image/gif;base64,R0lGODlhGAAYAJECAP7+/v///wAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh/wtYTVAgRGF0YVhNUDw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMTQ4IDc5LjE2NDAzNiwgMjAxOS8wOC8xMy0wMTowNjo1NyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDIxLjAgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6QTI2NTYzMDc2RTNDMTFFREJENEJEMzUxOTQzQjMxMkQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6QTI2NTYzMDg2RTNDMTFFREJENEJEMzUxOTQzQjMxMkQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDpBMjY1NjMwNTZFM0MxMUVEQkQ0QkQzNTE5NDNCMzEyRCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDpBMjY1NjMwNjZFM0MxMUVEQkQ0QkQzNTE5NDNCMzEyRCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5+Pf29fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHAv769vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiHhoWEg4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9OTUxLSklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYVFBMSERAPDg0MCwoJCAcGBQQDAgEAACH5BAkEAAIALAAAAAAYABgAAAI5lI+py+0Po2QhTFXrRdlu031gJgqhpI0pdJ4sacJv6j6trABeTOMcfFslgp7ar4fcDVcyX+kJjToKACH5BAkEAAIALAAAAAAYABgAAAI2lI+py+0Po5xUhFDRvdls3H0T522SaJkRikKs6qptAr+kYoOzJvc37dPBgKQco3YbdpbM5qQAACH5BAkEAAIALAAAAAAYABgAAAI3lI+py+0Po5y02hhykHqLzmkGiImfCZHkkh0qmrztOSuyt8bmzfC0Z9sJa7qZLwhEwS7MpnNSAAAh+QQJBAACACwAAAAAGAAYAAACPJSPqcvtD6OctJoQ7MFYC55dYQSKHcmZo3J+qdsmJRzO7DvbMs7HSN5b/YIqBvCkGyKJixds4/NIp1RHAQAh+QQJBAACACwAAAAAGAAYAAACOpSPqcvtD6OcLwSarMVHXy54YKhJIrmhn3K25eKmJ/vGa1bnKS3rN2IzzHC94q/jE754yNVyBI1KIQUAIfkECQQAAgAsAAAAABgAGAAAAjmUj6nL7Q+jnLSaEOzBePbLSVwmjGJYopCZfmnDxmoif6xSkzeN5ozfIuF6RBfPVhQeN66Z5gmNTgoAIfkECQQAAgAsAAAAABgAGAAAAjmUj6nL7Q+jnLRaETLSMnMfdJ4Bit8YlRgKqerauOibyCen2OGK1/Pf2wB3NOGNyPLteIfk5QmNTgoAIfkECQQAAgAsAAAAABgAGAAAAjeUj6nL7Q+jnCkEWu3FRm/uHdYUCiVUnk+qSewYvd/amrWKyF2t6DbcuwmBGZgv+OHxOMyms1kAACH5BAkEAAIALAAAAAAYABgAAAI5lI+py+0PowtBLkptwlUf7n1YaIBlF5kmpI6puz5t9tLxBLsCgCpzdxPZcjQfEajbFHVJkvMJtRQAACH5BAkEAAIALAAAAAAYABgAAAI1lI+py+0Po5wpBFrtxUZv7nGdJgqheJ5QSkasJb2bmsFmSyPyaCv73avNcC1fr1gsKZdMSAEAIfkECQQAAgAsAAAAABgAGAAAAjWUj6nL7Q+jnLRaEfI1Wd8ebKDYkR4WHqcyol7Llm4KJ+0tx69cI/i+8vGGQdUpl9sol0xIAQAh+QQJBAACACwAAAAAGAAYAAACNJSPqcvtD6OctNq7QsBCa+xtV9h8DJl5p5qaCtqJsZugNvuyN43sIlzTCXkHnJHISSqXiQIAOw==';
   const LEGACY_STYLE_IDS = ['blf-special-style', 'tm-bili-special-layout-large-player-style'];
   const LEGACY_CLASSES = ['blf-special-page', 'tm-bili-special-layout-normal-room-like', 'tm-bili-special-layout-player-host', 'tm-bili-special-layout-player-root'];
-  const FRAME_STYLE_ID = 'blive-special-layout-frame-style';
   const WEB_MODE_FALLBACK_POLL_MS = 1200;
   let resizeObserver = null;
   let rafId = 0;
   let webModePollTimer = 0;
   let trackedBlancFrame = null;
+  let trackedBlancFrameLoadHandler = null;
   let trackedBlancFrameDoc = null;
-  let trackedBlancFrameObserver = null;
   let specialWebFullscreenActive = false;
 
+  function readStoredMode() {
+    try {
+      return window.localStorage.getItem(MODE_KEY) || DEFAULT_MODE;
+    } catch (_err) {
+      return DEFAULT_MODE;
+    }
+  }
+
+  function writeStoredMode(mode) {
+    try {
+      window.localStorage.setItem(MODE_KEY, mode);
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
   const urlMode = new URLSearchParams(window.location.search).get('blf_mode');
-  const storedMode = (window.localStorage.getItem(MODE_KEY) || DEFAULT_MODE).toLowerCase();
+  const storedMode = readStoredMode().toLowerCase();
   const dynamicMode = VALID_MODES.has((urlMode || '').toLowerCase())
     ? urlMode.toLowerCase()
     : (VALID_MODES.has(storedMode) ? storedMode : DEFAULT_MODE);
@@ -76,8 +101,7 @@
     if (!VALID_MODES.has(next)) {
       return false;
     }
-    window.localStorage.setItem(MODE_KEY, next);
-    return true;
+    return writeStoredMode(next);
   };
 
   function isSpecialTopPage(doc) {
@@ -87,7 +111,7 @@
     const hasSpecialPlayer = Boolean(doc.querySelector('.live-non-revenue-player'));
     const hasHandleBar = Boolean(doc.querySelector('.live-player-handle-bar'));
     const hasPlayerBg = Boolean(doc.querySelector('.live-player-bg'));
-    const hasBlancFrame = Array.from(doc.querySelectorAll('iframe')).some((frame) => (frame.src || '').includes('/blanc/'));
+    const hasBlancFrame = Boolean(doc.querySelector('iframe[src*="/blanc/"]'));
     const hasActivityRoot = Boolean(doc.querySelector('.rendererRoot, .layerWrapperRoot, [class*="pageRoot"]'));
     const hasNormalLayout = Boolean(doc.querySelector('.player-and-aside-area'));
 
@@ -100,22 +124,6 @@
     }
 
     return !hasNormalLayout && hasActivityRoot && hasHandleBar && hasPlayerBg;
-  }
-
-  function ensureOfficialSidebarCss(doc) {
-    if (!doc || !doc.head) {
-      return;
-    }
-    OFFICIAL_SIDEBAR_CSS_URLS.forEach((href) => {
-      if (doc.querySelector(`link[data-blive-special-sidebar="${href}"]`)) {
-        return;
-      }
-      const link = doc.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.dataset.bliveSpecialSidebar = href;
-      doc.head.appendChild(link);
-    });
   }
 
   function clearLegacyConflicts(doc) {
@@ -138,7 +146,7 @@
       doc.querySelector('.player'),
       doc.querySelector('#player-ctnr'),
       doc.querySelector('.layerWrapperRoot'),
-      Array.from(doc.querySelectorAll('iframe')).find((frame) => (frame.src || '').includes('/blanc/'))
+      doc.querySelector('iframe[src*="/blanc/"]')
     ].filter(Boolean);
     targets.forEach((el) => {
       el.style.removeProperty('width');
@@ -157,9 +165,9 @@
     if (!playerRoot || !playerRoot.parentElement) {
       return 0;
     }
-    const cached = Number(playerRoot.dataset[DATA_KEY] || 0);
-    if (cached > 0) {
-      return cached;
+    const cachedValue = playerRoot.dataset[DATA_KEY];
+    if (cachedValue !== undefined) {
+      return Math.max(0, Number(cachedValue) || 0);
     }
     const shellExtraWidth = Math.max(0, playerRoot.parentElement.offsetWidth - playerRoot.offsetWidth);
     playerRoot.dataset[DATA_KEY] = String(shellExtraWidth);
@@ -220,12 +228,53 @@
         Math.min(heightBoundBodyWidth, widthBoundBodyWidth)
       )
     );
-    return Math.max(320, Math.round((bodyWidth - asideGap) * SPECIAL_PLAYER_SIZE_RATIO));
+    const availableWidth = Math.max(1, viewportWidth - VIEWPORT_EDGE_GUTTER);
+    return Math.min(
+      availableWidth,
+      Math.max(320, Math.round((bodyWidth - asideGap) * SPECIAL_PLAYER_SIZE_RATIO))
+    );
+  }
+
+  function getBaseVideoMetrics(playerRoot, videoArea) {
+    let width = Number(playerRoot.dataset[BASE_WIDTH_KEY] || 0);
+    let ratio = Number(playerRoot.dataset[BASE_RATIO_KEY] || 0);
+    if (!(width > 0) || !(ratio > 0)) {
+      width = videoArea.offsetWidth;
+      const height = videoArea.offsetHeight;
+      if (!(width > 0) || !(height > 0)) {
+        return null;
+      }
+      ratio = height / width;
+      playerRoot.dataset[BASE_WIDTH_KEY] = String(width);
+      playerRoot.dataset[BASE_RATIO_KEY] = String(ratio);
+    }
+    return { width, ratio };
+  }
+
+  function calculateTargetPlayerSize(viewportWidth, shellExtraWidth, baseMetrics, desiredWidth) {
+    const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
+    const safeShellExtraWidth = Math.max(0, Number(shellExtraWidth) || 0);
+    const availableWidth = Math.max(
+      1,
+      safeViewportWidth - VIEWPORT_EDGE_GUTTER - safeShellExtraWidth
+    );
+    const baseWidth = Math.max(1, Number(baseMetrics.width) || 1);
+    const ratio = Math.max(0.01, Number(baseMetrics.ratio) || 9 / 16);
+    const preferredWidth = Math.max(1, Number(desiredWidth) || 1);
+    const width = Math.round(Math.min(
+      availableWidth,
+      Math.max(Math.min(baseWidth, availableWidth), preferredWidth)
+    ));
+    return {
+      availableWidth,
+      width,
+      height: Math.round(width * ratio),
+      shellWidth: Math.round(width + safeShellExtraWidth)
+    };
   }
 
   function getBlancFrame(doc) {
-    return Array.from(doc.querySelectorAll('iframe'))
-      .find((frame) => (frame.src || '').includes('/blanc/')) || null;
+    return doc.querySelector('iframe[src*="/blanc/"]');
   }
 
   function getBlancFrameWindow(doc) {
@@ -354,29 +403,30 @@
       trackedBlancFrameDoc.removeEventListener('dblclick', handleTrackedFrameInteraction, true);
       trackedBlancFrameDoc = null;
     }
-    if (trackedBlancFrameObserver) {
-      trackedBlancFrameObserver.disconnect();
-      trackedBlancFrameObserver = null;
+  }
+
+  function cleanupRuntimeWatchers() {
+    if (webModePollTimer) {
+      window.clearInterval(webModePollTimer);
+      webModePollTimer = 0;
+    }
+    if (trackedBlancFrame && trackedBlancFrameLoadHandler) {
+      trackedBlancFrame.removeEventListener('load', trackedBlancFrameLoadHandler);
+    }
+    trackedBlancFrame = null;
+    trackedBlancFrameLoadHandler = null;
+    cleanupTrackedFrameWatchers();
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
     }
   }
 
-  function handleTrackedFrameInteraction(event) {
-    const target = event && event.target;
-    if (!target || typeof target.closest !== 'function') {
-      scheduleApplyLayout(document);
-      return;
-    }
-    if (
-      target.closest('[aria-label*="网页"]') ||
-      target.closest('[class*="fullscreen"]') ||
-      target.closest('[class*="screen"]') ||
-      target.closest('.web-player-controller-wrap') ||
-      target.closest('.web-player-icon-roomStatus') ||
-      target.closest('.web-player-controller')
-    ) {
-      scheduleApplyLayout(document);
-      return;
-    }
+  function handleTrackedFrameInteraction() {
     scheduleApplyLayout(document);
   }
 
@@ -390,99 +440,6 @@
     trackedBlancFrameDoc = frameDoc;
     trackedBlancFrameDoc.addEventListener('click', handleTrackedFrameInteraction, true);
     trackedBlancFrameDoc.addEventListener('dblclick', handleTrackedFrameInteraction, true);
-    trackedBlancFrameObserver = new MutationObserver(() => {
-      scheduleApplyLayout(doc);
-    });
-    trackedBlancFrameObserver.observe(frameDoc.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style']
-    });
-  }
-
-  function isSpecialEmbeddedBlanc() {
-    if (window.top === window) {
-      return false;
-    }
-    if (!location.pathname.startsWith('/blanc/')) {
-      return false;
-    }
-    try {
-      const parentDoc = window.parent && window.parent.document;
-      return Boolean(parentDoc && parentDoc.querySelector('.live-non-revenue-player'));
-    } catch (_err) {
-      return false;
-    }
-  }
-
-  function ensureEmbeddedFrameStyle(doc) {
-    if (!doc || !doc.head || doc.getElementById(FRAME_STYLE_ID)) {
-      return;
-    }
-    const style = doc.createElement('style');
-    style.id = FRAME_STYLE_ID;
-    style.textContent = `
-html.blive-special-embedded {
-  --blive-special-frame-width: 100vw;
-  --blive-special-left-width: 100vw;
-  --blive-special-right-width: 0px;
-  --blive-special-left-height: calc(var(--blive-special-left-width) * 9 / 16);
-}
-html.blive-special-embedded .player-and-aside-area {
-  width: var(--blive-special-frame-width) !important;
-  max-width: var(--blive-special-frame-width) !important;
-}
-html.blive-special-embedded #player-ctnr,
-html.blive-special-embedded .left-container,
-html.blive-special-embedded .player-section,
-html.blive-special-embedded .live-player-mounter,
-html.blive-special-embedded #gift-control-vm {
-  width: var(--blive-special-left-width) !important;
-  max-width: var(--blive-special-left-width) !important;
-}
-html.blive-special-embedded .player-section,
-html.blive-special-embedded .live-player-mounter,
-html.blive-special-embedded #live-player {
-  height: var(--blive-special-left-height) !important;
-}
-html.blive-special-embedded .chat-history-panel,
-html.blive-special-embedded #chat-history-list,
-html.blive-special-embedded #chat-control-panel-vm {
-  width: var(--blive-special-right-width) !important;
-  max-width: var(--blive-special-right-width) !important;
-  display: none !important;
-}
-html.blive-special-embedded .fullscreen-container-paddingbox,
-html.blive-special-embedded #fullscreen-container,
-html.blive-special-embedded .fullscreen-container-paddingbox > .tool-open,
-html.blive-special-embedded .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open {
-  width: var(--blive-special-left-width) !important;
-  max-width: var(--blive-special-left-width) !important;
-  height: var(--blive-special-left-height) !important;
-}
-html.blive-special-embedded .fullscreen-container-paddingbox > #fullscreen-container,
-html.blive-special-embedded .fullscreen-container-paddingbox > .tool-open,
-html.blive-special-embedded .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-html.blive-special-embedded .fullscreen-container-paddingbox .player-section,
-html.blive-special-embedded .fullscreen-container-paddingbox .web-player-inject-wrap,
-html.blive-special-embedded .fullscreen-container-paddingbox .web-player-controller-wrap,
-html.blive-special-embedded .fullscreen-container-paddingbox video {
-  width: 100% !important;
-  max-width: 100% !important;
-}
-`;
-    doc.head.appendChild(style);
-  }
-
-  function initEmbeddedFrameLayout() {
-    const doc = document;
-    doc.documentElement.classList.add('blive-special-embedded');
-    doc.documentElement.dataset.bliveSpecialLayoutVersion = `${FORCE_MODE === 'no-list' ? '2.1.8-no-list' : '2.1.8'}-frame`;
-    ensureEmbeddedFrameStyle(doc);
   }
 
   function ensureStyle(doc) {
@@ -493,9 +450,9 @@ html.blive-special-embedded .fullscreen-container-paddingbox video {
     style.id = STYLE_ID;
     style.textContent = `
 html.blive-special-layout {
-  --blive-special-player-width: min(calc((100vw - 100px) * 0.85), 2540px);
+  --blive-special-player-width: clamp(1px, calc((100vw - 100px) * 0.85), 2540px);
   --blive-special-player-height: calc(var(--blive-special-player-width) * 0.5864361702);
-  --blive-special-list-width: min(1220px, var(--blive-special-player-width));
+  --blive-special-list-width: var(--blive-special-player-width);
 }
 html.blive-special-layout .live-non-revenue-player {
   width: var(--blive-special-player-width) !important;
@@ -576,6 +533,7 @@ html.blive-special-layout #blf-special-sidebar-host {
   right: 0 !important;
   bottom: 20% !important;
   z-index: 2147483000 !important;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif !important;
 }
 html.blive-special-layout #blf-special-sidebar-host #sidebar-vm {
   position: relative !important;
@@ -585,12 +543,17 @@ html.blive-special-layout #blf-special-sidebar-host .side-bar-cntr {
   right: 0 !important;
   bottom: 20% !important;
   width: 44px !important;
-  min-height: 86px !important;
+  min-height: 0 !important;
+  height: auto !important;
   background: #fff !important;
   border-radius: 12px 0 0 12px !important;
   box-shadow: 0 0 20px 0 rgba(0, 85, 255, 0.1) !important;
   padding: 12px 4px !important;
   box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 2px !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .side-bar-btn {
   width: 34px !important;
@@ -599,6 +562,49 @@ html.blive-special-layout #blf-special-sidebar-host .side-bar-btn {
   margin: 0 !important;
   box-sizing: border-box !important;
   cursor: pointer !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #0080c6 !important;
+  font: inherit !important;
+  appearance: none !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .side-bar-btn[hidden] {
+  display: none !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .side-bar-btn:hover {
+  background: #f1f9ff !important;
+  color: #00aeec !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .side-bar-btn:focus-visible {
+  outline: 2px solid #00aeec !important;
+  outline-offset: 1px !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .side-bar-btn-cntr {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .side-bar-icon {
+  width: 26px !important;
+  height: 26px !important;
+  display: block !important;
+  color: currentColor !important;
+  font-size: 25px !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  line-height: 26px !important;
+  text-align: center !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .size-bar-text {
+  margin: 2px 0 0 !important;
+  color: currentColor !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+  white-space: nowrap !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .side-bar-btn.no-text {
   height: 46px !important;
@@ -625,18 +631,28 @@ html.blive-special-layout #blf-special-sidebar-host .side-bar-popup-cntr {
   height: 394px !important;
   border-radius: 12px !important;
   box-shadow: 0 6px 12px 0 rgba(106, 115, 133, 0.22) !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   display: none !important;
+  z-index: 2147483001 !important;
+  background: #fff !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .side-bar-popup-cntr.is-open {
   display: block !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .side-bar-popup-cntr .arrow {
   top: calc(55% + 0px) !important;
+  position: absolute !important;
+  right: -7px !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #fff !important;
+  transform: rotate(45deg) !important;
+  box-shadow: 3px -3px 8px rgba(106, 115, 133, 0.08) !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .content-wrapper {
   width: 276px !important;
   height: 394px !important;
+  position: relative !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .follow-cntr {
   width: 274px !important;
@@ -675,22 +691,22 @@ html.blive-special-layout #blf-special-sidebar-host .more-follows span {
   color: #9499a0 !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .blue-right-arrow {
-  margin: 1.4px 2.75px 1.4px 4.15px !important;
-  width: 12px !important;
-  height: 12px !important;
+  margin-left: 4px !important;
+  width: auto !important;
+  height: auto !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background-image: url("${MORE_ARROW_ICON}") !important;
-  background-repeat: no-repeat !important;
-  background-size: 5.1px 9.2px !important;
-  background-position: center !important;
+  color: #9499a0 !important;
+  font-size: 18px !important;
+  font-style: normal !important;
+  line-height: 12px !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .more-follows:hover span {
   color: #00aeec !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .more-follows:hover .blue-right-arrow {
-  background-image: url("${MORE_ARROW_ICON_HOVER}") !important;
+  color: #00aeec !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .tm-follow-subtitle {
   display: none !important;
@@ -733,17 +749,6 @@ html.blive-special-layout #blf-special-sidebar-host .avatar {
   justify-content: center !important;
   position: relative !important;
 }
-html.blive-special-layout #blf-special-sidebar-host .side-bar-icon.icon-lab {
-  background: center / 26px 26px no-repeat url("${LAB_ICON_URL}") !important;
-}
-html.blive-special-layout #blf-special-sidebar-host .tm-sidebar-follow .side-bar-icon.icon-font,
-html.blive-special-layout #blf-special-sidebar-host .tm-sidebar-top .side-bar-icon.icon-font {
-  background: none !important;
-  color: #00aeec !important;
-  font-size: 26px !important;
-  line-height: 26px !important;
-  text-align: center !important;
-}
 html.blive-special-layout #blf-special-sidebar-host .real-avatar {
   width: 42px !important;
   height: 42px !important;
@@ -764,10 +769,15 @@ html.blive-special-layout #blf-special-sidebar-host .pink-icon {
   position: absolute !important;
   right: 0 !important;
   bottom: 0 !important;
-  background-image: url("${PINK_ICON_GIF}") !important;
-  background-repeat: no-repeat !important;
-  background-size: 8px 9px !important;
-  background-position: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #fff !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+html.blive-special-layout #blf-special-sidebar-host .pink-icon::before {
+  content: "♥" !important;
 }
 html.blive-special-layout #blf-special-sidebar-host .anchor-name {
   width: 62px !important;
@@ -815,110 +825,130 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     };
   }
 
+  function normalizeHttpUrl(value, baseUrl) {
+    if (!value) {
+      return '';
+    }
+    try {
+      const url = new URL(String(value), baseUrl || location.href);
+      return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+    } catch (_err) {
+      return '';
+    }
+  }
+
   function extractRooms(payload) {
     if (!payload || payload.code !== 0) {
       return [];
     }
     const out = [];
-    const seen = new Set();
-    const walk = (node) => {
-      if (!node) {
+    const seenRooms = new Set();
+    const visited = new Set();
+    const walk = (node, depth) => {
+      if (!node || depth > 8 || out.length >= MAX_FOLLOW_ITEMS) {
         return;
       }
       if (Array.isArray(node)) {
-        node.forEach(walk);
+        node.forEach((item) => walk(item, depth + 1));
         return;
       }
-      if (typeof node !== 'object') {
+      if (typeof node !== 'object' || visited.has(node)) {
         return;
       }
+      visited.add(node);
       const roomid = node.roomid || node.room_id || node.roomId || node.id || node.anchor_roomid;
-      const face = node.face || node.face_url || node.uface || node.upic || node.avatar || node.cover || node.user_cover || node.cover_from_user || '';
-      const nickname = node.nickname || node.uname || node.name || node.anchor_name || '';
-      let href = node.link || node.url || node.jump_url || node.room_link || '';
+      const rawFace = node.face || node.face_url || node.uface || node.upic || node.avatar || node.cover || node.user_cover || node.cover_from_user || '';
+      const nickname = String(node.nickname || node.uname || node.name || node.anchor_name || '').trim();
+      const rawHref = node.link || node.url || node.jump_url || node.room_link || (roomid ? `https://live.bilibili.com/${roomid}` : '');
+      const face = normalizeHttpUrl(rawFace, 'https://live.bilibili.com/');
+      const href = normalizeHttpUrl(rawHref, 'https://live.bilibili.com/');
 
-      if (!href && roomid) {
-        href = `https://live.bilibili.com/${roomid}`;
-      }
-      if (href && href.startsWith('//')) {
-        href = `https:${href}`;
-      }
-      if (href && href.startsWith('/')) {
-        href = `https://live.bilibili.com${href}`;
-      }
       if (roomid && face && nickname && href) {
         const key = String(roomid);
-        if (!seen.has(key)) {
-          seen.add(key);
+        if (!seenRooms.has(key)) {
+          seenRooms.add(key);
           out.push({ roomid, face, nickname, href });
         }
       }
-      Object.values(node).forEach(walk);
+      Object.values(node).forEach((value) => walk(value, depth + 1));
     };
-    walk(payload.data || payload);
+    walk(payload.data || payload, 0);
     return out;
   }
 
   function findFirstUrl(node) {
-    let found = '';
-    const walk = (value) => {
-      if (found || !value) {
-        return;
+    const visited = new Set();
+    const preferredKeys = ['jump_url', 'jumpUrl', 'url', 'link'];
+    const walk = (value, depth) => {
+      if (!value || depth > 8) {
+        return '';
       }
       if (typeof value === 'string') {
-        if (/^https?:\/\//.test(value)) {
-          found = value;
+        return normalizeHttpUrl(value);
+      }
+      if (typeof value !== 'object' || visited.has(value)) {
+        return '';
+      }
+      visited.add(value);
+      for (const key of preferredKeys) {
+        const preferred = normalizeHttpUrl(value[key]);
+        if (preferred) {
+          return preferred;
         }
-        return;
       }
-      if (Array.isArray(value)) {
-        value.forEach(walk);
-        return;
+      for (const child of Object.values(value)) {
+        const found = walk(child, depth + 1);
+        if (found) {
+          return found;
+        }
       }
-      if (typeof value === 'object') {
-        Object.values(value).forEach(walk);
-      }
+      return '';
     };
-    walk(node);
-    return found;
+    return walk(node, 0);
   }
 
   async function fetchJson(url) {
-    const resp = await fetch(url, {
-      credentials: 'include',
-      cache: 'no-store'
-    });
-    if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}`);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    try {
+      const resp = await fetch(url, {
+        credentials: 'include',
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      return await resp.json();
+    } finally {
+      window.clearTimeout(timeout);
     }
-    return resp.json();
-  }
-
-  function withCacheBuster(url) {
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}_=${Date.now()}`;
   }
 
   async function fetchSidebarPayload() {
-    let title = '我的关注';
-    let items = [];
-    let labUrl = '';
-
-    try {
-      items = extractRooms(await fetchJson(withCacheBuster(LIVE_FOLLOW_URL)));
-    } catch (_err) {
-      // ignore
+    const [followResult, labsResult] = await Promise.allSettled([
+      fetchJson(LIVE_FOLLOW_URL),
+      fetchJson(LAB_URL)
+    ]);
+    const followPayload = followResult.status === 'fulfilled' ? followResult.value : null;
+    const labsPayload = labsResult.status === 'fulfilled' ? labsResult.value : null;
+    const cacheable = Boolean(followPayload && [0, -101].includes(followPayload.code));
+    let emptyMessage = '暂无可展示内容';
+    if (followResult.status === 'rejected' || (followPayload && ![0, -101].includes(followPayload.code))) {
+      emptyMessage = '加载失败，请稍后重试';
+    } else if (followPayload && followPayload.code === -101) {
+      emptyMessage = '登录后可查看关注直播间';
     }
-    try {
-      const labs = await fetchJson(LAB_URL);
-      labUrl = findFirstUrl(labs.data || labs) || '';
-    } catch (_err) {
-      // ignore
-    }
-    return { title, items, labUrl };
+    return {
+      title: '我的关注',
+      items: extractRooms(followPayload),
+      labUrl: findFirstUrl(labsPayload && (labsPayload.data || labsPayload)),
+      emptyMessage,
+      cacheable
+    };
   }
 
-  function renderFollowList(listRoot, items) {
+  function renderFollowList(listRoot, items, emptyMessage) {
     listRoot.innerHTML = '';
     if (!items.length) {
       const empty = document.createElement('div');
@@ -927,7 +957,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       const text = document.createElement('div');
       text.className = 'follow-empty-text';
       text.setAttribute('data-v-80ec38f4', '');
-      text.textContent = '暂无可展示内容';
+      text.textContent = emptyMessage || '暂无可展示内容';
       empty.appendChild(text);
       listRoot.appendChild(empty);
       return;
@@ -976,26 +1006,26 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     host.id = 'blf-special-sidebar-host';
     host.innerHTML = `
 <div data-v-12f789d4="" id="sidebar-vm" class="p-relative z-sidebar contain-optimize">
-  <div data-v-12f789d4="" class="side-bar-cntr" style="height:60px;">
-    <div data-v-12f789d4="" role="button" data-upgrade-intro="Laboratory" class="side-bar-btn tm-sidebar-lab" style="display:none;">
-      <div data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
-        <span data-v-7d702bb4="" class="side-bar-icon dp-i-block icon-lab"></span>
-        <p data-v-7d702bb4="" class="size-bar-text color-#0080c6" style="color: rgb(0, 128, 198);">实验室</p>
-      </div>
-    </div>
-    <div data-v-12f789d4="" role="button" data-upgrade-intro="Follow" class="side-bar-btn tm-sidebar-follow">
-      <div data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
-        <span data-v-7d702bb4="" class="side-bar-icon dp-i-block icon-font icon-hollow-heart"></span>
-        <p data-v-7d702bb4="" class="size-bar-text color-#0080c6" style="color: rgb(0, 128, 198);">关注</p>
-      </div>
-    </div>
-    <div data-v-12f789d4="" role="button" data-upgrade-intro="Top" class="side-bar-btn no-text tm-sidebar-top" style="display:block;">
-      <div data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
-        <span data-v-7d702bb4="" class="side-bar-icon dp-i-block icon-font icon-arrow-top"></span>
-      </div>
-    </div>
+  <div data-v-12f789d4="" class="side-bar-cntr">
+    <button type="button" data-v-12f789d4="" aria-label="打开直播实验室" data-upgrade-intro="Laboratory" class="side-bar-btn tm-sidebar-lab" hidden>
+      <span data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
+        <span data-v-7d702bb4="" class="side-bar-icon" aria-hidden="true">⚗</span>
+        <span data-v-7d702bb4="" class="size-bar-text">实验室</span>
+      </span>
+    </button>
+    <button type="button" data-v-12f789d4="" aria-label="查看我的关注" aria-controls="blf-special-follow-popup" aria-expanded="false" data-upgrade-intro="Follow" class="side-bar-btn tm-sidebar-follow">
+      <span data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
+        <span data-v-7d702bb4="" class="side-bar-icon" aria-hidden="true">♡</span>
+        <span data-v-7d702bb4="" class="size-bar-text">关注</span>
+      </span>
+    </button>
+    <button type="button" data-v-12f789d4="" aria-label="返回播放器" data-upgrade-intro="Top" class="side-bar-btn no-text tm-sidebar-top" hidden>
+      <span data-v-7d702bb4="" data-v-12f789d4="" class="side-bar-btn-cntr">
+        <span data-v-7d702bb4="" class="side-bar-icon" aria-hidden="true">↑</span>
+      </span>
+    </button>
   </div>
-  <div data-v-902b9200="" data-v-12f789d4="" class="side-bar-popup-cntr ts-dot-4" style="bottom: calc(23% - 149px); height: 394px; display: none;">
+  <div id="blf-special-follow-popup" data-v-902b9200="" data-v-12f789d4="" class="side-bar-popup-cntr ts-dot-4" role="dialog" aria-label="我的关注" aria-hidden="true" aria-busy="false">
     <div data-v-902b9200="" class="arrow" style="top: calc(55% + 0px);"></div>
     <div data-v-902b9200="" class="content-wrapper">
       <div data-v-80ec38f4="" data-v-902b9200="" class="follow-cntr" popup-name="Follow">
@@ -1003,7 +1033,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
           <div data-v-80ec38f4="" class="follow-text">我的关注</div>
           <a data-v-80ec38f4="" class="more-follows" href="${MORE_FOLLOW_URL}" target="_blank" rel="noopener noreferrer">
             <span data-v-80ec38f4="">更多关注</span>
-            <i data-v-80ec38f4="" class="blue-right-arrow"></i>
+            <i data-v-80ec38f4="" class="blue-right-arrow" aria-hidden="true">›</i>
           </a>
         </div>
         <div class="tm-follow-subtitle" data-blf-role="subtitle"></div>
@@ -1046,7 +1076,6 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     const host = createSidebarDom();
     doc.body.appendChild(host);
 
-    const cntr = host.querySelector('.side-bar-cntr');
     const followBtn = host.querySelector('.tm-sidebar-follow');
     const topBtn = host.querySelector('.tm-sidebar-top');
     const labBtn = host.querySelector('.tm-sidebar-lab');
@@ -1061,18 +1090,20 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     let loading = false;
     let cacheItems = [];
     let cacheTitle = '我的关注';
+    let cacheEmptyMessage = '暂无可展示内容';
+    let cacheLoadedAt = 0;
     let labUrl = '';
 
     const scheduleTop = withRafScheduler(window, () => {
-      topBtn.style.display = 'block';
-      cntr.style.minHeight = '114px';
-      cntr.style.height = '114px';
+      const show = window.scrollY > getPlayerTop(doc) + 120;
+      topBtn.hidden = !show;
     });
 
     function setPopup(open) {
       popupOpen = open;
       popup.classList.toggle('is-open', open);
-      popup.style.display = open ? 'block' : 'none';
+      popup.setAttribute('aria-hidden', String(!open));
+      followBtn.setAttribute('aria-expanded', String(open));
     }
 
     function closePopupFromEmbeddedArea() {
@@ -1106,27 +1137,61 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       sidebarBoundFrameDoc.addEventListener('pointerdown', closePopupFromEmbeddedArea, true);
     }
 
-    async function loadFollow(force) {
+    function mutationsTouchBlancFrame(records) {
+      const nodeHasFrame = (node) => {
+        if (!(node instanceof Element)) {
+          return false;
+        }
+        if (node.matches('iframe') && (node.getAttribute('src') || '').includes('/blanc/')) {
+          return true;
+        }
+        return Boolean(node.querySelector('iframe[src*="/blanc/"]'));
+      };
+      for (const record of records) {
+        if (record.type === 'attributes' && record.target instanceof HTMLIFrameElement) {
+          return true;
+        }
+        for (const node of record.addedNodes) {
+          if (nodeHasFrame(node)) {
+            return true;
+          }
+        }
+        for (const node of record.removedNodes) {
+          if (nodeHasFrame(node)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    async function loadFollow() {
       if (loading) {
         return;
       }
-      if (!force && cacheItems.length) {
-        renderFollowList(listRoot, cacheItems);
+      if (cacheLoadedAt && Date.now() - cacheLoadedAt < FOLLOW_CACHE_MS) {
+        renderFollowList(listRoot, cacheItems, cacheEmptyMessage);
         return;
       }
       loading = true;
+      popup.setAttribute('aria-busy', 'true');
+      subtitle.textContent = '读取中…';
+      renderFollowList(listRoot, [], '读取中…');
       try {
         const payload = await fetchSidebarPayload();
         cacheItems = payload.items;
         cacheTitle = payload.title;
+        cacheEmptyMessage = payload.emptyMessage;
+        cacheLoadedAt = payload.cacheable ? Date.now() : 0;
         labUrl = payload.labUrl || '';
 
         titleRoot.textContent = cacheTitle;
         subtitle.textContent = `${cacheItems.length} 个${cacheTitle === '我的关注' ? '直播间' : '推荐主播'}`;
-        labBtn.style.display = labUrl ? 'block' : 'none';
-        renderFollowList(listRoot, cacheItems);
+        labBtn.hidden = !labUrl;
+        renderFollowList(listRoot, cacheItems, cacheEmptyMessage);
       } finally {
         loading = false;
+        popup.setAttribute('aria-busy', 'false');
       }
     }
 
@@ -1136,7 +1201,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       const next = !popupOpen;
       setPopup(next);
       if (next) {
-        loadFollow(true);
+        loadFollow();
       }
     });
 
@@ -1150,21 +1215,28 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
 
     labBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
-      if (labUrl) {
-        window.open(labUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        window.open('https://live.bilibili.com/p/html/live-labs/index.html', '_blank', 'noopener,noreferrer');
-      }
+      const target = normalizeHttpUrl(labUrl)
+        || 'https://live.bilibili.com/p/html/live-labs/index.html';
+      window.open(target, '_blank', 'noopener,noreferrer');
     });
 
     doc.addEventListener('click', (evt) => {
-      if (!host.contains(evt.target)) {
+      if (popupOpen && !host.contains(evt.target)) {
         setPopup(false);
       }
     });
 
-    new MutationObserver(() => {
-      rebindEmbeddedDismissTarget();
+    doc.addEventListener('keydown', (evt) => {
+      if (popupOpen && evt.key === 'Escape') {
+        setPopup(false);
+        followBtn.focus();
+      }
+    });
+
+    new MutationObserver((records) => {
+      if (mutationsTouchBlancFrame(records)) {
+        rebindEmbeddedDismissTarget();
+      }
     }).observe(doc.documentElement, {
       childList: true,
       subtree: true,
@@ -1175,7 +1247,6 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     rebindEmbeddedDismissTarget();
     window.addEventListener('scroll', scheduleTop, { passive: true });
     scheduleTop();
-    loadFollow(false);
   }
 
   function applyTopLayout(doc) {
@@ -1202,17 +1273,23 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return false;
     }
 
-    const baseVideoWidth = videoArea.offsetWidth;
-    const baseVideoHeight = videoArea.offsetHeight;
-    if (!baseVideoWidth || !baseVideoHeight) {
+    const baseMetrics = getBaseVideoMetrics(playerRoot, videoArea);
+    if (!baseMetrics) {
       return false;
     }
 
-    const targetWidth = Math.max(baseVideoWidth, getNormalRoomPlayerWidth(window));
-    const scale = targetWidth / baseVideoWidth;
-    const targetHeight = Math.round(baseVideoHeight * scale);
-    const targetShellWidth = Math.round(targetWidth + getShellExtraWidth(playerRoot));
-    const handleBarWidth = Math.min(1220, targetWidth);
+    const shellExtraWidth = getShellExtraWidth(playerRoot);
+    const viewportWidth = window.innerWidth || doc.documentElement.clientWidth || 0;
+    const targetSize = calculateTargetPlayerSize(
+      viewportWidth,
+      shellExtraWidth,
+      baseMetrics,
+      getNormalRoomPlayerWidth(window)
+    );
+    const targetWidth = targetSize.width;
+    const targetHeight = targetSize.height;
+    const targetShellWidth = targetSize.shellWidth;
+    const handleBarWidth = targetWidth;
     const handleBarHeight = handleBar && getComputedStyle(handleBar).display !== 'none'
       ? Math.round(handleBar.getBoundingClientRect().height)
       : 0;
@@ -1271,9 +1348,10 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
 
   function scheduleApplyLayout(doc) {
     if (rafId) {
-      window.cancelAnimationFrame(rafId);
+      return;
     }
     rafId = window.requestAnimationFrame(() => {
+      rafId = 0;
       applyTopLayout(doc);
     });
   }
@@ -1298,7 +1376,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return;
     }
 
-    const onFrameLoad = () => scheduleApplyLayout(doc);
+    trackedBlancFrameLoadHandler = () => scheduleApplyLayout(doc);
     const bindTrackedFrame = () => {
       const frame = getBlancFrame(doc);
       if (!frame || frame === trackedBlancFrame) {
@@ -1306,11 +1384,11 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         return;
       }
       if (trackedBlancFrame) {
-        trackedBlancFrame.removeEventListener('load', onFrameLoad);
+        trackedBlancFrame.removeEventListener('load', trackedBlancFrameLoadHandler);
       }
       cleanupTrackedFrameWatchers();
       trackedBlancFrame = frame;
-      trackedBlancFrame.addEventListener('load', onFrameLoad);
+      trackedBlancFrame.addEventListener('load', trackedBlancFrameLoadHandler);
       bindTrackedFrameWatchers(doc);
     };
 
@@ -1332,29 +1410,23 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     if (!bar || !btn) {
       return false;
     }
-    const barHeight = Math.round(bar.getBoundingClientRect().height);
-    const expanded = barHeight > 90 || btn.classList.contains('liveexpand');
+    const expanded = btn.classList.contains('liveexpand');
+    doc.documentElement.dataset.blfInitialCollapseDone = '1';
     if (!expanded) {
-      doc.documentElement.dataset.blfInitialCollapseDone = '1';
-      doc.documentElement.dataset.blfListCollapsed = '1';
       return true;
     }
-    const now = Date.now();
-    const lastTry = Number(btn.dataset.blfCollapseTry || '0');
-    if (now - lastTry < 600) {
-      return false;
-    }
-    btn.dataset.blfCollapseTry = String(now);
     btn.dispatchEvent(new MouseEvent('click', {
       bubbles: true,
       cancelable: true,
       view: window
     }));
-    return false;
+    return true;
   }
 
   function startInitialCollapseWatcher(doc) {
     let timer = 0;
+    let deadlineTimer = 0;
+    let settleTimer = 0;
     let stopped = false;
     const stop = () => {
       if (stopped) {
@@ -1365,21 +1437,56 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       if (timer) {
         window.clearInterval(timer);
       }
-    };
-    const tryCollapse = () => {
-      const done = ensureDefaultCollapsed(doc);
-      if (done) {
-        stop();
+      if (deadlineTimer) {
+        window.clearTimeout(deadlineTimer);
+      }
+      if (settleTimer) {
+        window.clearTimeout(settleTimer);
       }
     };
-    const observer = new MutationObserver(() => tryCollapse());
+    const tryCollapse = () => {
+      if (doc.documentElement.dataset.blfInitialCollapseDone === '1') {
+        stop();
+        return;
+      }
+      const btn = doc.querySelector('.live-player-handle-bar .expand-btn');
+      if (!btn || settleTimer) {
+        return;
+      }
+      settleTimer = window.setTimeout(() => {
+        settleTimer = 0;
+        if (ensureDefaultCollapsed(doc)) {
+          stop();
+        }
+      }, 100);
+    };
+    const mutationTouchesHandleBar = (records) => records.some((record) => {
+      const targetInHandleBar = record.target instanceof Element && (
+        record.target.matches('.live-player-handle-bar, .expand-btn')
+        || Boolean(record.target.closest('.live-player-handle-bar'))
+      );
+      if (targetInHandleBar) {
+        return true;
+      }
+      return [...record.addedNodes, ...record.removedNodes].some((node) => (
+        node instanceof Element && (
+          node.matches('.live-player-handle-bar, .expand-btn')
+          || Boolean(node.closest('.live-player-handle-bar'))
+          || Boolean(node.querySelector('.live-player-handle-bar, .expand-btn'))
+        )
+      ));
+    });
+    const observer = new MutationObserver((records) => {
+      if (mutationTouchesHandleBar(records)) {
+        tryCollapse();
+      }
+    });
     observer.observe(doc.body || doc.documentElement, {
       childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style']
+      subtree: true
     });
-    timer = window.setInterval(() => tryCollapse(), 1000);
+    timer = window.setInterval(() => tryCollapse(), 500);
+    deadlineTimer = window.setTimeout(stop, MAX_COLLAPSE_WATCH_MS);
     tryCollapse();
   }
 
@@ -1397,15 +1504,26 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
   function initSpecialLayout() {
     const doc = document;
     clearLegacyConflicts(doc);
-    clearLayoutInlineSizes(doc.querySelector('.live-non-revenue-player'));
+    const playerRoot = doc.querySelector('.live-non-revenue-player');
+    clearLayoutInlineSizes(playerRoot);
+    if (playerRoot) {
+      const videoArea =
+        playerRoot.querySelector('.live-player-bg')
+        || playerRoot.querySelector('.player iframe')
+        || playerRoot.querySelector('.player');
+      getShellExtraWidth(playerRoot);
+      if (videoArea) {
+        getBaseVideoMetrics(playerRoot, videoArea);
+      }
+    }
     doc.documentElement.classList.add('blive-special-layout');
     doc.documentElement.classList.toggle('blf-no-list', specialMode === 'no-list');
-    doc.documentElement.dataset.bliveSpecialLayoutVersion = '2.1.8-no-list';
-    ensureOfficialSidebarCss(doc);
+    doc.documentElement.dataset.bliveSpecialLayoutVersion = VERSION;
     ensureStyle(doc);
     setupSidebar(doc);
     watchFullscreenState(doc);
     watchEmbeddedWebFullscreen(doc);
+    window.addEventListener('pagehide', cleanupRuntimeWatchers, { once: true });
     scheduleApplyLayout(doc);
     watchPlayerResize(doc);
     if (!doc.documentElement.dataset.bliveSpecialResizeBound) {
@@ -1422,40 +1540,72 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     const doc = document;
     let initialized = false;
     let retryTimer = 0;
+    let deadlineTimer = 0;
+    let observer = null;
+    let stopped = false;
+
+    const stop = () => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      if (retryTimer) {
+        window.clearInterval(retryTimer);
+        retryTimer = 0;
+      }
+      if (deadlineTimer) {
+        window.clearTimeout(deadlineTimer);
+        deadlineTimer = 0;
+      }
+      if (observer) {
+        observer.disconnect();
+      }
+    };
 
     const tryInit = () => {
-      if (initialized) {
+      if (initialized || stopped) {
         return;
       }
       if (!isSpecialTopPage(doc)) {
+        if (doc.readyState === 'complete' && doc.querySelector('.player-and-aside-area')) {
+          stop();
+        }
         return;
       }
       initialized = true;
       initSpecialLayout();
       console.info('[blive-special-layout] active', {
-        version: '2.1.8-no-list',
+        version: VERSION,
         mode: specialMode,
         href: location.href
       });
-      if (retryTimer) {
-        window.clearInterval(retryTimer);
-      }
-      observer.disconnect();
+      stop();
     };
 
     const scheduleTryInit = withRafScheduler(window, tryInit);
-    const observer = new MutationObserver(() => {
-      scheduleTryInit();
-      if (initialized) {
-        scheduleApplyLayout(doc);
+    const relevantSelector = [
+      '.live-non-revenue-player',
+      '.live-player-handle-bar',
+      '.live-player-bg',
+      'iframe[src*="/blanc/"]',
+      '.rendererRoot',
+      '.layerWrapperRoot',
+      '[class*="pageRoot"]',
+      '.player-and-aside-area'
+    ].join(',');
+    const nodeMayRevealPageType = (node) => node instanceof Element && (
+      node.matches(relevantSelector) || Boolean(node.querySelector(relevantSelector))
+    );
+    observer = new MutationObserver((records) => {
+      const relevant = records.some((record) => [...record.addedNodes].some(nodeMayRevealPageType));
+      if (relevant) {
+        scheduleTryInit();
       }
     });
 
     observer.observe(doc.documentElement, {
       childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style', 'src']
+      subtree: true
     });
 
     retryTimer = window.setInterval(() => {
@@ -1465,8 +1615,10 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       }
       scheduleTryInit();
     }, 1000);
+    deadlineTimer = window.setTimeout(stop, MAX_INIT_WATCH_MS);
 
     window.addEventListener('load', scheduleTryInit, { once: true });
+    window.addEventListener('pagehide', stop, { once: true });
     scheduleTryInit();
   }
 

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>礼物面板关闭测试页</title>
+  <style>
+    body {
+      margin: 24px;
+      font-family: sans-serif;
+    }
+
+    .fullscreen-container-paddingbox {
+      width: 800px;
+      height: 500px;
+    }
+
+    .tool-open {
+      display: grid;
+      width: 100%;
+      height: 100%;
+    }
+
+    .container-tool-paddingbox {
+      width: 300px;
+      height: 200px;
+      background: #fff;
+      border: 1px solid #ddd;
+    }
+  </style>
+  <script>
+    document.addEventListener('pointerdown', (event) => {
+      const host = document.getElementById('fixture-gift-host');
+      if (
+        host?.classList.contains('tool-open')
+        && !event.target.closest('.container-tool-paddingbox')
+      ) {
+        document.documentElement.dataset.fixtureNativeClosed = '1';
+        host.classList.remove('tool-open');
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="fullscreen-container-paddingbox">
+    <div id="fixture-gift-host" class="tool-open">
+      <div class="player-section">播放器</div>
+      <div class="container-tool-paddingbox">
+        <div class="close-decoration">仅装饰，不是关闭按钮</div>
+      </div>
+    </div>
+  </div>
+  <button type="button" id="fixture-outside">点击面板外部</button>
+  <script>
+    document.querySelector('.close-decoration').addEventListener('click', () => {
+      document.documentElement.dataset.fixtureDecorationClicked = '1';
+    });
+  </script>
+  <script src="/bilibili-live-gift-panel-overlay.user.js"></script>
+</body>
+</html>

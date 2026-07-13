@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>特殊直播布局测试页</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #f4f5f7;
+      color: #18191c;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    .rendererRoot {
+      width: 100%;
+      padding-top: 40px;
+    }
+
+    .layerWrapperRoot {
+      width: 1260px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .live-non-revenue-player {
+      width: 1220px;
+      margin: 0 auto;
+    }
+
+    .live-player-bg,
+    .player,
+    #player-ctnr {
+      width: 1220px;
+      height: 686px;
+    }
+
+    #player-ctnr {
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #1f2430, #35405a);
+      color: #fff;
+      font-size: 32px;
+    }
+
+    .live-player-handle-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 55px;
+      width: 1220px;
+      min-height: 65px;
+      align-items: start;
+      background: #fff;
+      border-top: 1px solid #e3e5e7;
+    }
+
+    .fixture-list {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 10px 0;
+      list-style: none;
+    }
+
+    .fixture-list li {
+      display: grid;
+      min-height: 45px;
+      place-items: center;
+      background: #f6f7f8;
+    }
+
+    .live-player-handle-bar[data-expanded="false"] .fixture-list {
+      display: none;
+    }
+
+    .expand-btn {
+      width: 55px;
+      height: 55px;
+      border: 0;
+      background: transparent;
+      color: #61666d;
+      cursor: pointer;
+    }
+
+    .fixture-spacer {
+      height: 1400px;
+    }
+  </style>
+  <script>
+    window.fixtureFetchCount = 0;
+    document.documentElement.dataset.fixtureFetchCount = '0';
+    window.fetch = async (input) => {
+      window.fixtureFetchCount += 1;
+      document.documentElement.dataset.fixtureFetchCount = String(window.fixtureFetchCount);
+      const url = String(input);
+      const payload = url.includes('GetWebList')
+        ? {
+            code: 0,
+            data: [
+              {
+                roomid: 101,
+                face: 'https://i0.hdslb.com/bfs/face/member/noface.jpg',
+                nickname: '测试主播',
+                link: 'https://live.bilibili.com/101'
+              }
+            ]
+          }
+        : {
+            code: 0,
+            data: {
+              jump_url: 'https://live.bilibili.com/p/html/live-labs/index.html'
+            }
+          };
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return payload;
+        }
+      };
+    };
+  </script>
+</head>
+<body>
+  <main class="rendererRoot">
+    <section class="layerWrapperRoot">
+      <div class="live-non-revenue-player">
+        <div class="live-player-bg">
+          <div class="player">
+            <div id="player-ctnr">模拟直播播放器</div>
+          </div>
+        </div>
+        <div class="live-player-handle-bar">
+          <ul class="fixture-list" aria-label="聚合直播列表">
+            <li>直播间 1</li><li>直播间 2</li><li>直播间 3</li>
+            <li>直播间 4</li><li>直播间 5</li><li>直播间 6</li>
+            <li>直播间 7</li><li>直播间 8</li><li>直播间 9</li>
+            <li>直播间 10</li><li>直播间 11</li><li>直播间 12</li>
+          </ul>
+          <button type="button" class="expand-btn liveexpand" aria-label="切换聚合列表">⌄</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="fixture-spacer" aria-hidden="true"></div>
+  <script>
+    const fixtureBar = document.querySelector('.live-player-handle-bar');
+    const fixtureToggle = fixtureBar.querySelector('.expand-btn');
+    const fixtureParams = new URLSearchParams(location.search);
+    if (fixtureParams.get('initial') === 'collapsed') {
+      fixtureToggle.classList.remove('liveexpand');
+    }
+    window.fixtureToggleCount = 0;
+    const renderFixtureListState = () => {
+      const expanded = fixtureToggle.classList.contains('liveexpand');
+      fixtureBar.dataset.expanded = String(expanded);
+      fixtureToggle.setAttribute('aria-expanded', String(expanded));
+      document.documentElement.dataset.fixtureToggleCount = String(window.fixtureToggleCount);
+    };
+    fixtureToggle.addEventListener('click', () => {
+      window.fixtureToggleCount += 1;
+      fixtureToggle.classList.toggle('liveexpand');
+      renderFixtureListState();
+    });
+    renderFixtureListState();
+
+    const variant = fixtureParams.get('variant');
+    const userscript = document.createElement('script');
+    userscript.src = variant === 'no-list'
+      ? '../../bilibili-live-special-layout-no-list.user.js'
+      : '../../bilibili-live-special-layout.user.js';
+    document.body.appendChild(userscript);
+  </script>
+</body>
+</html>

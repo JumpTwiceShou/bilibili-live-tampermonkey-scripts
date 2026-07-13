@@ -4,12 +4,20 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const playwrightEntry = process.env.PLAYWRIGHT_ENTRY || 'playwright';
-const { chromium } = require(playwrightEntry);
-
-const PAGE_URL = 'https://live.bilibili.com/12101556';
-const SCRIPT_PATH = path.resolve('bilibili-live-special-layout.user.js');
-const OUTPUT_DIR = path.resolve('.playwright-cli', 'debug-special-page');
+const PAGE_URL = process.env.PAGE_URL || 'https://live.bilibili.com/12101556';
+const SCRIPT_PATH = path.resolve(
+  process.env.SCRIPT_PATH || 'bilibili-live-special-layout.user.js'
+);
+const OUTPUT_DIR = path.resolve(
+  process.env.OUTPUT_DIR || path.join('.playwright-cli', 'debug-special-page')
+);
 const SKIP_WEB_MODE = process.env.SKIP_WEB_MODE === '1';
+const HEADLESS = process.env.HEADLESS !== '0';
+const BROWSER_CHANNEL = process.env.BROWSER_CHANNEL || 'chrome';
+const EXPECTED_MODE = process.env.EXPECTED_MODE
+  || (path.basename(SCRIPT_PATH).includes('no-list') ? 'no-list' : 'keep-list');
+const INITIAL_VIEWPORT = { width: 1920, height: 1080 };
+const NARROW_VIEWPORT = { width: 1280, height: 800 };
 
 async function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,6 +25,12 @@ async function wait(ms) {
 
 function logStep(message) {
   console.log(`\n[debug] ${message}`);
+}
+
+function assertCondition(condition, message) {
+  if (!condition) {
+    throw new Error(`Assertion failed: ${message}`);
+  }
 }
 
 async function snapshotState(page, label) {
@@ -65,12 +79,25 @@ async function snapshotState(page, label) {
       followHost: pick('#blf-special-sidebar-host'),
       popup: popup ? {
         className: popup.className,
-        display: getComputedStyle(popup).display
+        display: getComputedStyle(popup).display,
+        role: popup.getAttribute('role'),
+        ariaHidden: popup.getAttribute('aria-hidden'),
+        ariaBusy: popup.getAttribute('aria-busy')
       } : null,
       followBtn: followBtn ? {
+        tag: followBtn.tagName,
         text: (followBtn.textContent || '').trim(),
+        ariaExpanded: followBtn.getAttribute('aria-expanded'),
         rect: followBtn.getBoundingClientRect().toJSON()
       } : null,
+      topBtn: (() => {
+        const button = document.querySelector('#blf-special-sidebar-host .tm-sidebar-top');
+        return button ? {
+          tag: button.tagName,
+          hidden: button.hidden,
+          display: getComputedStyle(button).display
+        } : null;
+      })(),
       webModeNode: webModeText ? {
         text: webModeText.textContent.trim(),
         tag: webModeText.tagName,
@@ -85,6 +112,7 @@ async function snapshotState(page, label) {
     path: path.join(OUTPUT_DIR, `${label}.png`),
     fullPage: false
   });
+  return state;
 }
 
 async function dismissPopups(page) {
@@ -175,59 +203,183 @@ async function openFollowPopup(page) {
   }
 }
 
-async function main() {
-  await mkdir(OUTPUT_DIR, { recursive: true });
-  const scriptContent = await readFile(SCRIPT_PATH, 'utf8');
-  const browser = await chromium.launch({
-    headless: false,
-    channel: 'chrome'
-  });
-  const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 }
-  });
-  const page = await context.newPage();
+function validateInitialState(state) {
+  assertCondition(Boolean(state.version), 'userscript version marker is present');
+  assertCondition(state.playerRoot?.rect.width > 300, 'special player has a measurable width');
+  assertCondition(state.followBtn?.tag === 'BUTTON', 'follow control is keyboard-accessible');
+  assertCondition(state.popup?.role === 'dialog', 'follow popup exposes dialog semantics');
+  assertCondition(state.popup?.ariaHidden === 'true', 'follow popup starts closed');
+  assertCondition(
+    EXPECTED_MODE === 'no-list'
+      ? state.htmlClass.includes('blf-no-list')
+      : !state.htmlClass.includes('blf-no-list'),
+    `layout mode matches ${EXPECTED_MODE}`
+  );
+}
 
-  page.on('console', (msg) => {
-    console.log(`[browser:${msg.type()}] ${msg.text()}`);
-  });
-  page.setDefaultTimeout(15000);
-
-  logStep('goto page');
-  await page.addInitScript({ content: scriptContent });
-  await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle', { timeout: 45000 }).catch(() => {});
+async function validateResponsiveShrink(page, initialState) {
+  const initialWidth = initialState.playerRoot.rect.width;
+  await page.setViewportSize(NARROW_VIEWPORT);
   await page.waitForFunction(
-    () => Boolean(document.documentElement.dataset.bliveSpecialLayoutVersion),
-    { timeout: 45000 }
+    ({ previousWidth, maximumWidth }) => {
+      const width = document.querySelector('.live-non-revenue-player')
+        ?.getBoundingClientRect().width || 0;
+      return width > 0 && width < previousWidth - 1 && width <= maximumWidth + 2;
+    },
+    {
+      previousWidth: initialWidth,
+      maximumWidth: NARROW_VIEWPORT.width - 32
+    },
+    { timeout: 15000 }
+  );
+  const narrowState = await snapshotState(page, '02-narrow');
+  const narrowWidth = narrowState.playerRoot?.rect.width || 0;
+  assertCondition(narrowWidth < initialWidth, 'player shrinks with the viewport');
+  assertCondition(
+    narrowWidth <= NARROW_VIEWPORT.width - 32 + 2,
+    'player stays inside the configured viewport gutter'
   );
 
-  await dismissPopups(page);
-  await wait(3000);
-  await logFrames(page, 'initial');
-  await snapshotState(page, '01-initial');
+  await page.setViewportSize(INITIAL_VIEWPORT);
+  await page.waitForFunction(
+    (previousWidth) => (
+      (document.querySelector('.live-non-revenue-player')
+        ?.getBoundingClientRect().width || 0) > previousWidth + 1
+    ),
+    narrowWidth,
+    { timeout: 15000 }
+  );
+  await snapshotState(page, '03-restored');
+}
 
-  if (SKIP_WEB_MODE) {
-    logStep('skip web mode step');
-  } else {
-    logStep('click web mode');
-    await clickWebMode(page);
-    await wait(3000);
-    await logFrames(page, 'web-mode');
-    await snapshotState(page, '02-web-mode');
+async function validateReturnButton(page) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await wait(500);
+  const startsHidden = await page.locator('#blf-special-sidebar-host .tm-sidebar-top')
+    .evaluate((button) => button.hidden);
+  assertCondition(startsHidden, 'return-to-player control starts hidden near the player');
+
+  const playerTop = await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.id = 'blf-debug-scroll-spacer';
+    spacer.style.height = `${window.innerHeight + 600}px`;
+    spacer.style.pointerEvents = 'none';
+    document.body.appendChild(spacer);
+    const player = document.querySelector('.live-player-bg, #player-ctnr, .player');
+    if (!player) {
+      return 0;
+    }
+    const rect = player.getBoundingClientRect();
+    return Math.max(0, Math.round(window.scrollY + rect.top));
+  });
+
+  try {
+    await page.evaluate((top) => window.scrollTo(0, top + 300), playerTop);
+    await page.waitForFunction(
+      () => {
+        const button = document.querySelector('#blf-special-sidebar-host .tm-sidebar-top');
+        return Boolean(button && !button.hidden && getComputedStyle(button).display !== 'none');
+      },
+      undefined,
+      { timeout: 10000 }
+    );
+    await snapshotState(page, '04-return-visible');
+    await page.locator('#blf-special-sidebar-host .tm-sidebar-top').click();
+    await page.waitForFunction(
+      (top) => Math.abs(window.scrollY - top) <= 30,
+      playerTop,
+      { timeout: 10000 }
+    );
+  } finally {
+    await page.evaluate(() => document.getElementById('blf-debug-scroll-spacer')?.remove());
+  }
+}
+
+async function main() {
+  let chromium;
+  try {
+    ({ chromium } = require(playwrightEntry));
+  } catch (error) {
+    throw new Error(
+      `Cannot load Playwright from ${playwrightEntry}; set PLAYWRIGHT_ENTRY to a resolvable module path (${error.message})`
+    );
   }
 
-  logStep('open follow popup');
-  await openFollowPopup(page);
-  await wait(1500);
-  await snapshotState(page, '03-follow-open');
+  let browser = null;
+  let context = null;
+  try {
+    await mkdir(OUTPUT_DIR, { recursive: true });
+    const scriptContent = await readFile(SCRIPT_PATH, 'utf8');
+    const launchOptions = { headless: HEADLESS };
+    if (BROWSER_CHANNEL && BROWSER_CHANNEL !== 'bundled') {
+      launchOptions.channel = BROWSER_CHANNEL;
+    }
+    browser = await chromium.launch(launchOptions);
+    context = await browser.newContext({ viewport: INITIAL_VIEWPORT });
+    const page = await context.newPage();
 
-  logStep('click player area to close popup');
-  await page.mouse.click(900, 500);
-  await wait(1000);
-  await snapshotState(page, '04-after-player-click');
+    page.on('console', (msg) => {
+      console.log(`[browser:${msg.type()}] ${msg.text()}`);
+    });
+    page.on('pageerror', (error) => {
+      console.error(`[browser:pageerror] ${error.message}`);
+    });
+    page.setDefaultTimeout(15000);
 
-  await context.close();
-  await browser.close();
+    logStep(`goto ${PAGE_URL}`);
+    await page.addInitScript({ content: scriptContent });
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle', { timeout: 45000 }).catch(() => {});
+    await page.waitForFunction(
+      () => Boolean(document.documentElement.dataset.bliveSpecialLayoutVersion),
+      undefined,
+      { timeout: 45000 }
+    );
+
+    await dismissPopups(page);
+    await wait(3000);
+    await logFrames(page, 'initial');
+    const initialState = await snapshotState(page, '01-initial');
+    validateInitialState(initialState);
+
+    logStep('validate responsive shrink and restore');
+    await validateResponsiveShrink(page, initialState);
+
+    logStep('validate return-to-player visibility threshold');
+    await validateReturnButton(page);
+
+    if (SKIP_WEB_MODE) {
+      logStep('skip web mode step');
+    } else {
+      logStep('click web mode');
+      await clickWebMode(page);
+      await wait(3000);
+      await logFrames(page, 'web-mode');
+      await snapshotState(page, '05-web-mode');
+    }
+
+    logStep('open follow popup');
+    await openFollowPopup(page);
+    await wait(1500);
+    const openState = await snapshotState(page, '06-follow-open');
+    assertCondition(openState.followBtn?.ariaExpanded === 'true', 'follow trigger reports expanded state');
+    assertCondition(openState.popup?.ariaHidden === 'false', 'follow popup reports open state');
+
+    logStep('click player area to close popup');
+    await page.mouse.click(900, 500);
+    await wait(1000);
+    const closedState = await snapshotState(page, '07-after-player-click');
+    assertCondition(closedState.popup?.ariaHidden === 'true', 'outside click closes follow popup');
+
+    logStep('all browser assertions passed');
+  } finally {
+    if (context) {
+      await context.close().catch(() => {});
+    }
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
 }
 
 main().catch((error) => {

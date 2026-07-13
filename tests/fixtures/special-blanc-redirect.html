@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>特殊直播跳转测试页</title>
+  <script>
+    history.replaceState(null, '', '/789');
+  </script>
+</head>
+<body>
+  <main>等待嵌入播放器</main>
+  <script src="/bilibili-live-special-blanc-redirect.user.js"></script>
+  <script>
+    window.setTimeout(() => {
+      const frame = document.createElement('iframe');
+      frame.src = '/blanc/789';
+      document.body.appendChild(frame);
+    }, 50);
+  </script>
+</body>
+</html>
