@@ -43,6 +43,44 @@ function exposeLayoutHelpers(source) {
 ${source.slice(index)}`;
 }
 
+function exposeRedirectHelpers(source) {
+  const boot = /\r?\n  start\(\);\r?\n\}\)\(\);\s*$/;
+  const match = source.match(boot);
+  assert(match?.index >= 0, 'redirect userscript boot call is present');
+  return `${source.slice(0, match.index)}
+  globalThis.__bliveRedirectValidation = {
+    isSkippablePage,
+    isSpecialTopPage,
+    normalizeBlancUrl
+  };
+})();`;
+}
+
+function loadRedirectHelpers(source, href) {
+  const location = new URL(href);
+  const window = {};
+  window.top = window;
+  const context = vm.createContext({
+    location,
+    URL,
+    URLSearchParams,
+    window
+  });
+  vm.runInContext(exposeRedirectHelpers(source), context, {
+    filename: 'bilibili-live-special-blanc-redirect.user.js'
+  });
+  return context.__bliveRedirectValidation;
+}
+
+function selectorDocument(selectors) {
+  const present = new Set(selectors);
+  return {
+    querySelector(selector) {
+      return present.has(selector) ? { selector } : null;
+    }
+  };
+}
+
 function loadLayoutHelpers(source) {
   const location = new URL('https://live.bilibili.com/123');
   const document = {
@@ -134,6 +172,57 @@ async function main() {
   assert(
     noList.includes('Generated from bilibili-live-special-layout.user.js; do not edit directly.'),
     'no-list userscript records its generated origin'
+  );
+
+  const redirectSource = await readFile(
+    path.join(repoRoot, 'bilibili-live-special-blanc-redirect.user.js'),
+    'utf8'
+  );
+  const redirectHelpers = loadRedirectHelpers(
+    redirectSource,
+    'https://live.bilibili.com/blackboard/era/test-special-page.html'
+  );
+  assert.equal(redirectHelpers.isSkippablePage(), false, 'blackboard activity paths are eligible for DOM detection');
+  assert.equal(
+    loadRedirectHelpers(redirectSource, 'https://live.bilibili.com/blanc/23612045').isSkippablePage(),
+    true,
+    'blanc player pages do not redirect recursively'
+  );
+  assert.equal(
+    loadRedirectHelpers(
+      redirectSource,
+      'https://live.bilibili.com/123?blive_no_blanc_redirect=1'
+    ).isSkippablePage(),
+    true,
+    'manual redirect opt-out remains supported'
+  );
+  const specialPage = selectorDocument([
+    '.live-non-revenue-player',
+    '.live-player-bg',
+    'iframe[src*="/blanc/"]'
+  ]);
+  assert.equal(
+    redirectHelpers.isSpecialTopPage(specialPage),
+    true,
+    'special player DOM with a blanc frame is detected independently of the entry URL'
+  );
+  const normalPage = selectorDocument([
+    '.live-non-revenue-player',
+    '.live-player-handle-bar',
+    '.live-player-bg',
+    '.rendererRoot, .layerWrapperRoot, [class*="pageRoot"]',
+    '.player-and-aside-area'
+  ]);
+  assert.equal(redirectHelpers.isSpecialTopPage(normalPage), false, 'normal room layout is not classified as special');
+  assert.equal(
+    redirectHelpers.normalizeBlancUrl('//live.bilibili.com/blanc/23612045'),
+    'https://live.bilibili.com/blanc/23612045?liteVersion=true',
+    'same-origin blanc targets are normalized'
+  );
+  assert.equal(
+    redirectHelpers.normalizeBlancUrl('https://example.com/blanc/23612045'),
+    '',
+    'cross-origin blanc targets are rejected'
   );
 
   const helpers = loadLayoutHelpers(canonical);

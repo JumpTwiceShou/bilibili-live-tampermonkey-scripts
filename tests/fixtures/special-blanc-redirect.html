@@ -5,11 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>特殊直播跳转测试页</title>
   <script>
-    history.replaceState(null, '', '/789');
+    history.replaceState(null, '', '/blackboard/era/test-special-page.html');
   </script>
 </head>
 <body>
-  <main>等待嵌入播放器</main>
+  <main class="rendererRoot">
+    <section class="live-non-revenue-player">
+      <div class="live-player-bg">等待嵌入播放器</div>
+      <div class="live-player-handle-bar">模拟播放器控制条</div>
+    </section>
+  </main>
   <script src="/bilibili-live-special-blanc-redirect.user.js"></script>
   <script>
     window.setTimeout(() => {
