@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.0.20
+// @version      1.1
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -16,7 +16,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.20';
+  const VERSION = '1.1';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -117,8 +117,11 @@
   max-width: min(300px, 32vw);
   overflow: hidden;
   color: #61666d;
+  cursor: text;
   font-weight: 500;
   text-overflow: ellipsis;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 #${HOST_ID} .blive-room-title-sep {
