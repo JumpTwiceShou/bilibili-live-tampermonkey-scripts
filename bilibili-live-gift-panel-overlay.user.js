@@ -2,11 +2,12 @@
 // @name         Bilibili Live Gift Panel Overlay
 // @name:zh-CN   B站直播礼物面板布局重构
 // @namespace    https://live.bilibili.com/
-// @version      1.2.0
-// @description  Overlay the gift panel with a fixed two-row height and live gift-name search.
-// @description:zh-CN 重构 B 站直播礼物大面板布局，固定在播放器右下角并保持两行高度，支持按礼物名称实时筛选。
+// @version      1.3.0
+// @description  Overlay the gift panel with a fixed two-row height and live Chinese, pinyin and initials search.
+// @description:zh-CN 重构 B 站直播礼物大面板布局，固定在播放器右下角并保持两行高度，支持中文、拼音全拼和首字母实时筛选。
 // @match        https://live.bilibili.com/*
 // @run-at       document-end
+// @require      https://cdn.jsdelivr.net/npm/pinyin-pro@3.29.5/dist/index.js
 // @grant        none
 // @license      GPL-3.0-only
 // @supportURL   https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues
@@ -15,7 +16,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   const STYLE_ID = 'tm-bilibili-live-gift-panel-overlay';
   const OPEN_HOST_SELECTOR =
     'body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open, ' +
@@ -179,13 +180,39 @@ body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg
   let searchPanel = null;
   let panelObserver = null;
   const giftNames = new Map();
+  const giftSearchKeys = new Map();
 
   function normalizeGiftName(value) {
     return value.trim().toLocaleLowerCase();
   }
 
+  function normalizePinyin(value) {
+    return normalizeGiftName(value).replace(/u:/g, 'ü').normalize('NFD')
+      .replace(/u\u0308/g, 'v').replace(/\p{M}/gu, '').replace(/[\s'-]+/g, '');
+  }
+
+  function matchesGiftName(name, query, pinyinQuery) {
+    if (!query) return true;
+    const text = normalizeGiftName(name);
+    if (text.includes(query)) return true;
+    if (!pinyinQuery || typeof pinyinPro === 'undefined' || typeof pinyinPro.pinyin !== 'function') {
+      return false;
+    }
+    let keys = giftSearchKeys.get(text);
+    if (!keys) {
+      const options = { toneType: 'none', type: 'array', nonZh: 'consecutive', v: true };
+      keys = [
+        pinyinPro.pinyin(text, options).join(''),
+        pinyinPro.pinyin(text, { ...options, pattern: 'first' }).join(''),
+      ].map(normalizePinyin);
+      giftSearchKeys.set(text, keys);
+    }
+    return keys.some((key) => key.includes(pinyinQuery));
+  }
+
   function filterGifts(panel) {
     const query = normalizeGiftName(searchQuery);
+    const pinyinQuery = normalizePinyin(query);
     for (const list of panel.querySelectorAll('.gift-list-section')) {
       let matched = 0;
       for (const wrapper of list.querySelectorAll('.list-gift-wrapper')) {
@@ -195,7 +222,7 @@ body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg
         const name = wrapper.querySelector('.gift-label')?.textContent
           || gift?.__vue__?.giftInfo?.label || giftNames.get(id) || '';
         if (id && name.trim()) giftNames.set(id, name);
-        const visible = !query || normalizeGiftName(name).includes(query);
+        const visible = matchesGiftName(name, query, pinyinQuery);
         wrapper.classList.toggle('tm-gift-search-hidden', !visible);
         if (visible) matched += 1;
       }
@@ -243,6 +270,7 @@ body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg
       input.className = 'tm-gift-search';
       input.placeholder = '搜索礼物';
       input.setAttribute('aria-label', '搜索礼物');
+      input.title = '支持中文、拼音全拼和首字母，例如：小花花 / xiaohuahua / xhh';
       input.autocomplete = 'off';
       input.value = searchQuery;
       input.addEventListener('input', () => {
