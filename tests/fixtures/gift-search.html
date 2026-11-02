@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>礼物搜索回归测试</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 24px; font: 12px sans-serif; background: #eee; }
+    .fullscreen-container-paddingbox { width: 800px; height: 400px; }
+    .tool-open { display: grid; width: 100%; height: 100%; }
+    .container-tool-paddingbox { position: relative; background: white; border-radius: 8px; }
+    #container-tool, .more-gifts-panel-root, .official-container-root { width: 100%; height: 100%; }
+    .more-gifts-panel-tabs { display: flex; align-items: center; height: 44px; }
+    .more-gifts-panel-tabs > .tabs-section { display: flex; gap: 10px; margin-left: 12px; }
+    .right-section { display: flex; flex: 1; justify-content: end; gap: 8px; padding-right: 5px; }
+    .gift-list-section { display: flex; flex-direction: column; padding: 5px 12px; }
+    .gift-row { display: flex; gap: 12px; }
+    .list-gift-wrapper, .gift-item { width: 78px; height: 106px; }
+    .gift-item { border: 0; background: #fff4f8; cursor: pointer; }
+    .gift-label { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="fullscreen-container-paddingbox">
+    <div class="tool-open">
+      <div class="player-section">播放器</div>
+      <div class="container-tool-paddingbox"><div id="container-tool">
+        <div class="more-gifts-panel-root"><div class="official-container-root">
+          <div class="more-gifts-panel-tabs">
+            <div class="tabs-section"><span>礼物</span><span>粉丝团</span><span>航海</span><span>包裹</span></div>
+            <div class="right-section"><span>权益中心</span><button aria-label="关闭">×</button></div>
+          </div>
+          <div class="gift-list-section">
+            <div class="gift-row">
+              <div class="list-gift-wrapper"><button class="gift-item gift-id-1"><p class="gift-label">小花花</p></button></div>
+              <div class="list-gift-wrapper"><button class="gift-item gift-id-2"><p class="gift-label">心动盲盒</p></button></div>
+              <div class="list-gift-wrapper"><button class="gift-item gift-id-3"><p class="gift-label">bilibili世界</p></button></div>
+              <div class="list-gift-wrapper"><button class="gift-item gift-id-4"><p class="gift-label">音乐盒</p></button></div>
+            </div>
+          </div>
+        </div></div>
+      </div></div>
+    </div>
+  </div>
+  <button id="outside">面板外</button>
+  <script>
+    document.documentElement.dataset.fixtureGiftSelected = '0';
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.gift-item')) {
+        document.documentElement.dataset.fixtureGiftSelected = String(Number(document.documentElement.dataset.fixtureGiftSelected) + 1);
+      }
+      if (event.target.closest('[aria-label="关闭"]')) document.querySelector('.tool-open')?.classList.remove('tool-open');
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.29.5/dist/index.js"></script>
+  <script src="/bilibili-live-gift-panel-overlay.user.js"></script>
+</body>
+</html>

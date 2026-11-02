@@ -139,7 +139,7 @@ async function main() {
   }
 
   runNode(['--check', 'debug-special-page.mjs']);
-  runNode(['scripts/generate-special-layout-no-list.mjs', '--check']);
+  runNode(['scripts/build-userscripts.mjs', '--check']);
 
   const fixtureDir = path.join(repoRoot, 'tests', 'fixtures');
   const fixtureFiles = (await readdir(fixtureDir))

@@ -3,7 +3,7 @@
 // @name:en      Bilibili Live Video Bitrate Stats
 // @name:zh-CN   B站直播视频统计面板画面码率
 // @namespace    https://live.bilibili.com/
-// @version      1.1.0
+// @version      1.1.1
 // @description  在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
 // @description:en Show estimated video bitrate next to FPS in Bilibili Live's video stats panel.
 // @description:zh-CN 在 B 站直播播放器右键视频统计信息面板的 FPS 右侧显示估算画面码率。
@@ -28,7 +28,7 @@
     configurable: false
   });
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
   const STYLE_ID = 'blive-video-bitrate-stats-style';
   const VALUE_CLASS = 'blive-video-bitrate-stats-value';
   const DROPPED_FRAMES_ROW_ID = 'p-video-info-droppedFrames';
@@ -49,6 +49,9 @@
     totalBytes: 0,
     lastSampleAt: 0,
     lastVideo: null,
+    sampleGeneration: 0,
+    active: true,
+    valueNode: null,
     audioBitrateBps: 0,
     updateTimer: 0,
     attachRaf: 0,
@@ -60,6 +63,25 @@
   exposeVersion();
   startMediaSourceHooks();
   startDomHooks();
+  window.addEventListener('pagehide', pauseBitrateStats);
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    state.active = true;
+    startMediaSourceHooks();
+    startDomHooks();
+  });
+
+  function pauseBitrateStats() {
+    state.active = false;
+    resetSamples(true);
+    state.observer?.disconnect();
+    state.observer = null;
+    window.clearTimeout(state.updateTimer);
+    window.clearTimeout(state.hookRetryTimer);
+    window.cancelAnimationFrame(state.attachRaf);
+    state.updateTimer = state.hookRetryTimer = state.attachRaf = 0;
+    state.valueNode = null;
+  }
 
   function startMediaSourceHooks() {
     try {
@@ -125,6 +147,9 @@
 
       SourceBufferCtor.prototype.appendBuffer = function wrappedAppendBuffer(data) {
         const meta = sourceBufferMeta.get(this);
+        if (!state.active || !meta || !meta.hasVideo) {
+          return appendBuffer.apply(this, arguments);
+        }
         const bytes = getByteLength(data);
         const video = getPrimaryVideo();
         const before = meta && meta.hasVideo ? getBufferedSummary(this, video) : null;
@@ -154,12 +179,17 @@
 
   function trackAppend(sourceBuffer, meta, bytes, before, video) {
     let handled = false;
+    const generation = state.sampleGeneration;
 
     const finish = () => {
       if (handled) {
         return;
       }
       handled = true;
+
+      if (!state.active || !video || video !== getPrimaryVideo() || generation !== state.sampleGeneration) {
+        return;
+      }
 
       const after = getBufferedSummary(sourceBuffer, video || getPrimaryVideo());
       if (!before || !after) {
@@ -218,10 +248,8 @@
 
   function getPrimaryVideo() {
     const video = document.querySelector('video');
-    if (video && state.lastVideo && video !== state.lastVideo) {
-      resetSamples(true);
-    }
-    if (video) {
+    if (video !== state.lastVideo) {
+      if (state.lastVideo) resetSamples(true);
       state.lastVideo = video;
     }
     return video;
@@ -323,6 +351,7 @@
   }
 
   function resetSamples(resetAudio) {
+    state.sampleGeneration += 1;
     samples.length = 0;
     state.totalSeconds = 0;
     state.totalBytes = 0;
@@ -369,6 +398,7 @@
   }
 
   function initDomHooks() {
+    if (!state.active) return;
     ensureStyle();
     scheduleAttach();
     scheduleTextUpdate();
@@ -450,6 +480,7 @@
     const panel = document.querySelector(STATS_PANEL_SELECTOR);
     const row = document.getElementById(DROPPED_FRAMES_ROW_ID);
     if (!panel || !row || !panel.contains(row)) {
+      state.valueNode = null;
       return;
     }
 
@@ -469,6 +500,7 @@
       }
     }
 
+    state.valueNode = valueNode;
     updateValueNode(valueNode);
     scheduleTextUpdate();
   }
@@ -495,7 +527,7 @@
   }
 
   function scheduleTextUpdate() {
-    if (state.updateTimer) {
+    if (!state.active || !state.valueNode?.isConnected || state.updateTimer) {
       return;
     }
 
@@ -510,8 +542,9 @@
   function updateVisibleText() {
     getPrimaryVideo();
     readAudioBitrate();
-    const valueNode = document.querySelector(`#${DROPPED_FRAMES_ROW_ID} .${VALUE_CLASS}`);
-    if (!valueNode) {
+    const valueNode = state.valueNode;
+    if (!state.active || !valueNode?.isConnected) {
+      state.valueNode = null;
       return false;
     }
     updateValueNode(valueNode);
@@ -520,17 +553,20 @@
 
   function updateValueNode(valueNode) {
     const bitrate = getCurrentBitrate();
+    let text;
+    let title;
     if (!bitrate) {
-      valueNode.textContent = '画面码率: --';
-      valueNode.title = '等待足够的播放器缓冲样本';
-      return;
+      text = '画面码率: --';
+      title = '等待足够的播放器缓冲样本';
+    } else {
+      const prefix = bitrate.approx ? '约' : '';
+      text = `画面码率: ${prefix}${formatMbps(bitrate.mbps)}Mbps`;
+      title = bitrate.approx
+        ? '近 10 秒媒体平均码率；当前无法从统计面板扣除音频码率，数值包含音频部分'
+        : '近 10 秒媒体平均码率；混合音视频流会按统计面板 Audio Info 扣除音频码率';
     }
-
-    const prefix = bitrate.approx ? '约' : '';
-    valueNode.textContent = `画面码率: ${prefix}${formatMbps(bitrate.mbps)}Mbps`;
-    valueNode.title = bitrate.approx
-      ? '近 10 秒媒体平均码率；当前无法从统计面板扣除音频码率，数值包含音频部分'
-      : '近 10 秒媒体平均码率；混合音视频流会按统计面板 Audio Info 扣除音频码率';
+    if (valueNode.textContent !== text) valueNode.textContent = text;
+    if (valueNode.title !== title) valueNode.title = title;
   }
 
   function formatMbps(value) {

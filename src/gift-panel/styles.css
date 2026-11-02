@@ -1,0 +1,130 @@
+
+body:not(.pure_room_root) {
+  --tm-bili-gift-panel-width: min(376px, calc(100% - 32px));
+  --tm-bili-gift-panel-height: 264px;
+  --tm-bili-gift-list-height: 220px;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas: "player" "gift" !important;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open > .player-section,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open > .player-section {
+  grid-area: player !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open > .container-tool-paddingbox,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open > .container-tool-paddingbox {
+  grid-area: player !important;
+  justify-self: end !important;
+  align-self: end !important;
+  width: var(--tm-bili-gift-panel-width) !important;
+  height: var(--tm-bili-gift-panel-height) !important;
+  max-height: calc(100% - 8px) !important;
+  margin-right: 4px !important;
+  margin-bottom: 4px !important;
+  z-index: 30 !important;
+  pointer-events: auto !important;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open > .container-tool-paddingbox > *,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open > .container-tool-paddingbox > * {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .more-gifts-panel-root,
+body:not(.pure_room_root) .container-tool-paddingbox .official-container-root,
+body:not(.pure_room_root) .container-tool-paddingbox .gift-panel-background {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .gift-list-section {
+  height: var(--tm-bili-gift-list-height) !important;
+  max-height: calc(100% - 44px) !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .gift-row {
+  flex: 0 0 106px !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .more-gifts-panel-tabs > .tabs-section {
+  flex-shrink: 0;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .more-gifts-panel-tabs > .right-section {
+  flex: 0 0 auto;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 32px;
+  width: 0;
+  height: 24px;
+  margin: 0 8px;
+  padding: 0 6px;
+  border: 1px solid #e3e5e7;
+  border-radius: 5px;
+  outline: none;
+  background: #f6f7f8;
+  color: #61666d;
+  font: inherit;
+  font-size: 12px;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search:focus {
+  border-color: #ff6699;
+  background: #fff;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .gift-list-section.tm-gift-search-active {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 12px;
+  align-content: start;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search-active > .gift-row {
+  display: contents !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search-hidden {
+  display: none !important;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search-empty {
+  grid-column: 1 / -1;
+  margin: 36px 0;
+  color: #9499a0;
+  font-size: 12px;
+  text-align: center;
+}
+
+body:not(.pure_room_root) .container-tool-paddingbox .tm-gift-search-empty[hidden] {
+  display: none !important;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open .gift-control-section,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open .gift-control-section {
+  z-index: 40 !important;
+}
+
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open .z-gift-sender-panel,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open .z-gift-sender-panel,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .tool-open .gift-sender-panel,
+body:not(.pure_room_root) .fullscreen-container-paddingbox > .has-first-frame-bg.tool-open .gift-sender-panel {
+  z-index: 41 !important;
+  overflow: visible !important;
+}

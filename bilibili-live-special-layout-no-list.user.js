@@ -2,7 +2,7 @@
 // @name         Bilibili Live Special Layout (No List)
 // @name:zh-CN   B站特殊聚合页普通直播间布局（隐藏列表）
 // @namespace    https://live.bilibili.com/
-// @version      2.2.1-no-list
+// @version      2.2.2-no-list
 // @description  Special-page only, fixed no-list mode + native-like sidebar.
 // @description:zh-CN 将 B 站特殊聚合直播页重排为接近普通直播间的宽屏布局，隐藏聚合列表并补齐关注侧栏和回到播放器按钮。
 // @match        https://live.bilibili.com/*
@@ -13,9 +13,33 @@
 // @supportURL   https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
 // Generated from bilibili-live-special-layout.user.js; do not edit directly.
+// Generated from src/special-layout/index.user.js; run node scripts/build-userscripts.mjs.
 
 (function () {
   'use strict';
+
+  function createLifecycle() {
+    let active = true;
+    const disposers = [];
+    return {
+      get active() { return active; },
+      add(dispose) {
+        if (active) disposers.push(dispose);
+        else dispose();
+        return dispose;
+      },
+      listen(target, type, handler, options) {
+        target.addEventListener(type, handler, options);
+        this.add(() => target.removeEventListener(type, handler, options));
+      },
+      dispose() {
+        if (!active) return;
+        active = false;
+        while (disposers.length) disposers.pop()();
+      },
+    };
+  }
+
 
   if (window.top !== window) {
     return;
@@ -31,7 +55,7 @@
   });
 
   const MODE_KEY = 'blive:special-layout-mode';
-  const VERSION = '2.2.1-no-list';
+  const VERSION = '2.2.2-no-list';
   const VALID_MODES = new Set(['keep-list', 'no-list']);
   const DEFAULT_MODE = 'keep-list';
   const FORCE_MODE = 'no-list';
@@ -66,6 +90,12 @@
   let trackedBlancFrameLoadHandler = null;
   let trackedBlancFrameDoc = null;
   let specialWebFullscreenActive = false;
+  let runtimeScope = null;
+  let sidebarCleanup = null;
+  let collapseCleanup = null;
+  let initializationCleanup = null;
+  let trackedPlayerRoot = null;
+  let pageLifecycleBound = false;
 
   function readStoredMode() {
     try {
@@ -125,6 +155,7 @@
 
     return !hasNormalLayout && hasActivityRoot && hasHandleBar && hasPlayerBg;
   }
+
 
   function clearLegacyConflicts(doc) {
     LEGACY_STYLE_IDS.forEach((id) => {
@@ -273,6 +304,7 @@
     };
   }
 
+
   function getBlancFrame(doc) {
     return doc.querySelector('iframe[src*="/blanc/"]');
   }
@@ -306,14 +338,10 @@
     if (!frameWindow) {
       return null;
     }
-    const playerInstance =
-      (frameWindow.EmbedPlayer && frameWindow.EmbedPlayer.instance) ||
-      frameWindow.__PLAYER_GLOBAL_INSTANCE__ ||
-      null;
-    if (!playerInstance || !playerInstance.ctrl || typeof playerInstance.ctrl.getCtrlUI !== 'function') {
-      return null;
-    }
     try {
+      const playerInstance = (frameWindow.EmbedPlayer && frameWindow.EmbedPlayer.instance)
+        || frameWindow.__PLAYER_GLOBAL_INSTANCE__ || null;
+      if (!playerInstance || !playerInstance.ctrl || typeof playerInstance.ctrl.getCtrlUI !== 'function') return null;
       return playerInstance.ctrl.getCtrlUI() || null;
     } catch (_err) {
       return null;
@@ -406,6 +434,12 @@
   }
 
   function cleanupRuntimeWatchers() {
+    sidebarCleanup?.();
+    sidebarCleanup = null;
+    collapseCleanup?.();
+    collapseCleanup = null;
+    runtimeScope?.dispose();
+    runtimeScope = null;
     if (webModePollTimer) {
       window.clearInterval(webModePollTimer);
       webModePollTimer = 0;
@@ -420,6 +454,7 @@
       resizeObserver.disconnect();
       resizeObserver = null;
     }
+    trackedPlayerRoot = null;
     if (rafId) {
       window.cancelAnimationFrame(rafId);
       rafId = 0;
@@ -441,6 +476,57 @@
     trackedBlancFrameDoc.addEventListener('click', handleTrackedFrameInteraction, true);
     trackedBlancFrameDoc.addEventListener('dblclick', handleTrackedFrameInteraction, true);
   }
+
+  function watchPlayerResize(doc) {
+    const playerRoot = doc.querySelector('.live-non-revenue-player');
+    if (playerRoot === trackedPlayerRoot) return false;
+    trackedPlayerRoot = playerRoot;
+    resizeObserver?.disconnect();
+    if (!playerRoot) return true;
+    if (!resizeObserver) {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleApplyLayout(doc);
+      });
+    } else {
+      resizeObserver.disconnect();
+    }
+    resizeObserver.observe(playerRoot);
+    return true;
+  }
+
+  function watchEmbeddedWebFullscreen(doc) {
+    if (webModePollTimer) {
+      return;
+    }
+
+    trackedBlancFrameLoadHandler = () => scheduleApplyLayout(doc);
+    const bindTrackedFrame = () => {
+      const frame = getBlancFrame(doc);
+      if (frame === trackedBlancFrame) {
+        bindTrackedFrameWatchers(doc);
+        return false;
+      }
+      if (trackedBlancFrame) {
+        trackedBlancFrame.removeEventListener('load', trackedBlancFrameLoadHandler);
+      }
+      cleanupTrackedFrameWatchers();
+      trackedBlancFrame = frame;
+      trackedBlancFrame?.addEventListener('load', trackedBlancFrameLoadHandler);
+      bindTrackedFrameWatchers(doc);
+      return true;
+    };
+
+    bindTrackedFrame();
+    webModePollTimer = window.setInterval(() => {
+      const frameChanged = bindTrackedFrame();
+      const playerChanged = watchPlayerResize(doc);
+      if (frameChanged || playerChanged) sidebarCleanup?.rebind?.();
+      if (frameChanged || playerChanged || isEmbeddedWebFullscreenActive(doc) !== specialWebFullscreenActive) {
+        scheduleApplyLayout(doc);
+      }
+    }, WEB_MODE_FALLBACK_POLL_MS);
+  }
+
 
   function ensureStyle(doc) {
     if (!doc || !doc.head || doc.getElementById(STYLE_ID)) {
@@ -812,17 +898,16 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
   }
 
   function withRafScheduler(win, fn) {
-    let pending = false;
-    return function schedule() {
-      if (pending) {
-        return;
-      }
-      pending = true;
-      win.requestAnimationFrame(() => {
-        pending = false;
+    let frame = 0;
+    function schedule() {
+      if (frame) return;
+      frame = win.requestAnimationFrame(() => {
+        frame = 0;
         fn();
       });
-    };
+    }
+    schedule.cancel = () => { win.cancelAnimationFrame(frame); frame = 0; };
+    return schedule;
   }
 
   function normalizeHttpUrl(value, baseUrl) {
@@ -879,19 +964,21 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
   function findFirstUrl(node) {
     const visited = new Set();
     const preferredKeys = ['jump_url', 'jumpUrl', 'url', 'link'];
+    const asLink = (value) => typeof value === 'string' && /^(?:https?:\/\/|\/\/|\/(?!\/))/i.test(value.trim())
+      ? normalizeHttpUrl(value.trim()) : '';
     const walk = (value, depth) => {
       if (!value || depth > 8) {
         return '';
       }
       if (typeof value === 'string') {
-        return normalizeHttpUrl(value);
+        return depth === 0 ? asLink(value) : '';
       }
       if (typeof value !== 'object' || visited.has(value)) {
         return '';
       }
       visited.add(value);
       for (const key of preferredKeys) {
-        const preferred = normalizeHttpUrl(value[key]);
+        const preferred = asLink(value[key]);
         if (preferred) {
           return preferred;
         }
@@ -907,8 +994,11 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     return walk(node, 0);
   }
 
-  async function fetchJson(url) {
+  async function fetchJson(url, signal) {
     const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
     const timeout = window.setTimeout(() => controller.abort(), 10000);
     try {
       const resp = await fetch(url, {
@@ -922,13 +1012,14 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       return await resp.json();
     } finally {
       window.clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
     }
   }
 
-  async function fetchSidebarPayload() {
+  async function fetchSidebarPayload(signal) {
     const [followResult, labsResult] = await Promise.allSettled([
-      fetchJson(LIVE_FOLLOW_URL),
-      fetchJson(LAB_URL)
+      fetchJson(LIVE_FOLLOW_URL, signal),
+      fetchJson(LAB_URL, signal)
     ]);
     const followPayload = followResult.status === 'fulfilled' ? followResult.value : null;
     const labsPayload = labsResult.status === 'fulfilled' ? labsResult.value : null;
@@ -947,6 +1038,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       cacheable
     };
   }
+
 
   function renderFollowList(listRoot, items, emptyMessage) {
     listRoot.innerHTML = '';
@@ -1075,6 +1167,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     }
     const host = createSidebarDom();
     doc.body.appendChild(host);
+    const scope = createLifecycle();
+    let requestController = null;
+    scope.add(() => requestController?.abort());
 
     const followBtn = host.querySelector('.tm-sidebar-follow');
     const topBtn = host.querySelector('.tm-sidebar-top');
@@ -1095,6 +1190,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     let labUrl = '';
 
     const scheduleTop = withRafScheduler(window, () => {
+      if (!scope.active) return;
       const show = window.scrollY > getPlayerTop(doc) + 120;
       topBtn.hidden = !show;
     });
@@ -1118,6 +1214,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         if (sidebarBoundFrame) {
           sidebarBoundFrame.removeEventListener('load', rebindEmbeddedDismissTarget);
         }
+        sidebarBoundFrameDoc?.removeEventListener('pointerdown', closePopupFromEmbeddedArea, true);
         sidebarBoundFrame = frame;
         sidebarBoundFrameDoc = null;
         if (sidebarBoundFrame) {
@@ -1174,11 +1271,13 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         return;
       }
       loading = true;
+      requestController = new AbortController();
       popup.setAttribute('aria-busy', 'true');
       subtitle.textContent = '读取中…';
       renderFollowList(listRoot, [], '读取中…');
       try {
-        const payload = await fetchSidebarPayload();
+        const payload = await fetchSidebarPayload(requestController.signal);
+        if (!scope.active) return;
         cacheItems = payload.items;
         cacheTitle = payload.title;
         cacheEmptyMessage = payload.emptyMessage;
@@ -1191,11 +1290,12 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
         renderFollowList(listRoot, cacheItems, cacheEmptyMessage);
       } finally {
         loading = false;
-        popup.setAttribute('aria-busy', 'false');
+        requestController = null;
+        if (scope.active) popup.setAttribute('aria-busy', 'false');
       }
     }
 
-    followBtn.addEventListener('click', (evt) => {
+    scope.listen(followBtn, 'click', (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
       const next = !popupOpen;
@@ -1205,7 +1305,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       }
     });
 
-    topBtn.addEventListener('click', (evt) => {
+    scope.listen(topBtn, 'click', (evt) => {
       evt.preventDefault();
       window.scrollTo({
         top: getPlayerTop(doc),
@@ -1213,41 +1313,56 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       });
     });
 
-    labBtn.addEventListener('click', (evt) => {
+    scope.listen(labBtn, 'click', (evt) => {
       evt.preventDefault();
       const target = normalizeHttpUrl(labUrl)
         || 'https://live.bilibili.com/p/html/live-labs/index.html';
       window.open(target, '_blank', 'noopener,noreferrer');
     });
 
-    doc.addEventListener('click', (evt) => {
+    scope.listen(doc, 'click', (evt) => {
       if (popupOpen && !host.contains(evt.target)) {
         setPopup(false);
       }
     });
 
-    doc.addEventListener('keydown', (evt) => {
+    scope.listen(doc, 'keydown', (evt) => {
       if (popupOpen && evt.key === 'Escape') {
         setPopup(false);
         followBtn.focus();
       }
     });
 
-    new MutationObserver((records) => {
+    const frameObserver = new MutationObserver((records) => {
       if (mutationsTouchBlancFrame(records)) {
         rebindEmbeddedDismissTarget();
       }
-    }).observe(doc.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['src']
     });
 
-    rebindEmbeddedDismissTarget();
-    window.addEventListener('scroll', scheduleTop, { passive: true });
+    function rebind() {
+      frameObserver.disconnect();
+      const player = doc.querySelector('.live-non-revenue-player');
+      if (player?.parentElement) frameObserver.observe(player.parentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['src'],
+      });
+      rebindEmbeddedDismissTarget();
+    }
+
+    rebind();
+    scope.listen(window, 'scroll', scheduleTop, { passive: true });
     scheduleTop();
+    const dispose = () => {
+      scope.dispose();
+      frameObserver.disconnect();
+      sidebarBoundFrame?.removeEventListener('load', rebindEmbeddedDismissTarget);
+      sidebarBoundFrameDoc?.removeEventListener('pointerdown', closePopupFromEmbeddedArea, true);
+      scheduleTop.cancel();
+      host.remove();
+    };
+    dispose.rebind = rebind;
+    return dispose;
   }
+
 
   function applyTopLayout(doc) {
     const playerRoot = doc.querySelector('.live-non-revenue-player');
@@ -1356,50 +1471,6 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     });
   }
 
-  function watchPlayerResize(doc) {
-    const playerRoot = doc.querySelector('.live-non-revenue-player');
-    if (!playerRoot) {
-      return;
-    }
-    if (!resizeObserver) {
-      resizeObserver = new ResizeObserver(() => {
-        scheduleApplyLayout(doc);
-      });
-    } else {
-      resizeObserver.disconnect();
-    }
-    resizeObserver.observe(playerRoot);
-  }
-
-  function watchEmbeddedWebFullscreen(doc) {
-    if (webModePollTimer) {
-      return;
-    }
-
-    trackedBlancFrameLoadHandler = () => scheduleApplyLayout(doc);
-    const bindTrackedFrame = () => {
-      const frame = getBlancFrame(doc);
-      if (!frame || frame === trackedBlancFrame) {
-        bindTrackedFrameWatchers(doc);
-        return;
-      }
-      if (trackedBlancFrame) {
-        trackedBlancFrame.removeEventListener('load', trackedBlancFrameLoadHandler);
-      }
-      cleanupTrackedFrameWatchers();
-      trackedBlancFrame = frame;
-      trackedBlancFrame.addEventListener('load', trackedBlancFrameLoadHandler);
-      bindTrackedFrameWatchers(doc);
-    };
-
-    bindTrackedFrame();
-    webModePollTimer = window.setInterval(() => {
-      bindTrackedFrame();
-      if (isEmbeddedWebFullscreenActive(doc) !== specialWebFullscreenActive) {
-        scheduleApplyLayout(doc);
-      }
-    }, WEB_MODE_FALLBACK_POLL_MS);
-  }
 
   function ensureDefaultCollapsed(doc) {
     if (doc.documentElement.dataset.blfInitialCollapseDone === '1') {
@@ -1488,7 +1559,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     timer = window.setInterval(() => tryCollapse(), 500);
     deadlineTimer = window.setTimeout(stop, MAX_COLLAPSE_WATCH_MS);
     tryCollapse();
+    return stop;
   }
+
 
   function syncFullscreenState(doc) {
     const active = Boolean(doc.fullscreenElement);
@@ -1497,11 +1570,13 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
 
   function watchFullscreenState(doc) {
     const handler = () => syncFullscreenState(doc);
-    doc.addEventListener('fullscreenchange', handler);
+    runtimeScope.listen(doc, 'fullscreenchange', handler);
     syncFullscreenState(doc);
   }
 
   function initSpecialLayout() {
+    cleanupRuntimeWatchers();
+    runtimeScope = createLifecycle();
     const doc = document;
     clearLegacyConflicts(doc);
     const playerRoot = doc.querySelector('.live-non-revenue-player');
@@ -1520,23 +1595,31 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     doc.documentElement.classList.toggle('blf-no-list', specialMode === 'no-list');
     doc.documentElement.dataset.bliveSpecialLayoutVersion = VERSION;
     ensureStyle(doc);
-    setupSidebar(doc);
+    sidebarCleanup = setupSidebar(doc);
     watchFullscreenState(doc);
     watchEmbeddedWebFullscreen(doc);
-    window.addEventListener('pagehide', cleanupRuntimeWatchers, { once: true });
     scheduleApplyLayout(doc);
     watchPlayerResize(doc);
-    if (!doc.documentElement.dataset.bliveSpecialResizeBound) {
-      doc.documentElement.dataset.bliveSpecialResizeBound = '1';
-      window.addEventListener('resize', () => scheduleApplyLayout(doc));
-    }
+    runtimeScope.listen(window, 'resize', () => scheduleApplyLayout(doc));
 
     if (specialMode === 'keep-list') {
-      startInitialCollapseWatcher(doc);
+      collapseCleanup = startInitialCollapseWatcher(doc);
     }
   }
 
   function watchAndInit() {
+    if (!pageLifecycleBound) {
+      pageLifecycleBound = true;
+      window.addEventListener('pagehide', () => {
+        initializationCleanup?.();
+        cleanupRuntimeWatchers();
+      });
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) watchAndInit();
+      });
+    }
+    if (runtimeScope?.active) return;
+    initializationCleanup?.();
     const doc = document;
     let initialized = false;
     let retryTimer = 0;
@@ -1560,6 +1643,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
       if (observer) {
         observer.disconnect();
       }
+      window.removeEventListener('load', scheduleTryInit);
+      scheduleTryInit.cancel();
+      if (initializationCleanup === stop) initializationCleanup = null;
     };
 
     const tryInit = () => {
@@ -1583,6 +1669,7 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     };
 
     const scheduleTryInit = withRafScheduler(window, tryInit);
+    initializationCleanup = stop;
     const relevantSelector = [
       '.live-non-revenue-player',
       '.live-player-handle-bar',
@@ -1618,9 +1705,9 @@ html.blive-special-layout #blf-special-sidebar-host .follow-empty-text {
     deadlineTimer = window.setTimeout(stop, MAX_INIT_WATCH_MS);
 
     window.addEventListener('load', scheduleTryInit, { once: true });
-    window.addEventListener('pagehide', stop, { once: true });
     scheduleTryInit();
   }
+
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', watchAndInit, { once: true });

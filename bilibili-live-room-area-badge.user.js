@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.1
+// @version      1.1.1
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -12,11 +12,35 @@
 // @license      GPL-3.0-only
 // @supportURL   https://github.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/issues
 // ==/UserScript==
+// Generated from src/room-area/index.user.js; run node scripts/build-userscripts.mjs.
 
 (function () {
   'use strict';
 
-  const VERSION = '1.1';
+  function createLifecycle() {
+    let active = true;
+    const disposers = [];
+    return {
+      get active() { return active; },
+      add(dispose) {
+        if (active) disposers.push(dispose);
+        else dispose();
+        return dispose;
+      },
+      listen(target, type, handler, options) {
+        target.addEventListener(type, handler, options);
+        this.add(() => target.removeEventListener(type, handler, options));
+      },
+      dispose() {
+        if (!active) return;
+        active = false;
+        while (disposers.length) disposers.pop()();
+      },
+    };
+  }
+
+
+  const VERSION = '1.1.1';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -65,6 +89,7 @@
     lastInfoAt: 0,
     lastPath: location.href
   };
+  let roomRuntime = null;
 
   if (!isLiveRoomPage() || isSpecialTopShell()) {
     return;
@@ -314,14 +339,10 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
 
   function findTitleInPage() {
     const domTitle = firstVisibleText([
-      '.bili-dyn-card-live__title.bili-ellipsis.fs-medium',
-      '.bili-dyn-card-live__title',
-      '[class*="bili-dyn-card-live__title"]',
+      '#head-info-vm .bili-dyn-card-live__title',
       '#head-info-vm [class*="room-title"]',
       '#head-info-vm [class*="live-title"]',
-      '.room-title',
-      '[class*="room-title"]',
-      '[class*="live-title"]'
+      '#head-info-vm .room-title'
     ]);
     if (domTitle) {
       return domTitle;
@@ -373,6 +394,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     const rect = node.getBoundingClientRect();
     return rect.width > 20 && rect.height > 10;
   }
+
 
   function waitForElement(getElement, exec, timeout = 10000, onDone) {
     const immediate = getElement();
@@ -539,7 +561,6 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       return;
     }
     const host = getHost();
-    host.classList.remove('blive-room-area-badge-hidden');
 
     const mountInfo = findMount();
     if (!mountInfo) {
@@ -548,7 +569,8 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       return;
     }
 
-    host.className = 'blive-room-area-badge-static';
+    host.classList.add('blive-room-area-badge-static');
+    syncHostVisibility(host);
     host.dataset.bliveRoomAreaBadgeMount = mountInfo.type;
     host.style.left = '';
     host.style.top = '';
@@ -567,6 +589,11 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       attachHost();
     });
   }
+
+  function syncHostVisibility(host) {
+    host.classList.toggle('blive-room-area-badge-hidden', Boolean(document.fullscreenElement));
+  }
+
 
   function detectRoomId() {
     const urlId = getRoomIdFromUrl(location.href);
@@ -879,6 +906,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     return findAreaInKnownState();
   }
 
+
   function areaKey(info) {
     if (!info) {
       return '';
@@ -1025,25 +1053,34 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   function watchUrlChange() {
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
+    let active = true;
 
     history.pushState = function pushState() {
       const result = originalPushState.apply(this, arguments);
-      handleMaybeUrlChange();
+      if (active) handleMaybeUrlChange();
       return result;
     };
 
     history.replaceState = function replaceState() {
       const result = originalReplaceState.apply(this, arguments);
-      handleMaybeUrlChange();
+      if (active) handleMaybeUrlChange();
       return result;
     };
 
-    window.addEventListener('popstate', handleMaybeUrlChange);
-    window.addEventListener('hashchange', handleMaybeUrlChange);
+    const wrappedPush = history.pushState;
+    const wrappedReplace = history.replaceState;
+    roomRuntime.add(() => {
+      active = false;
+      if (history.pushState === wrappedPush) history.pushState = originalPushState;
+      if (history.replaceState === wrappedReplace) history.replaceState = originalReplaceState;
+    });
+    roomRuntime.listen(window, 'popstate', handleMaybeUrlChange);
+    roomRuntime.listen(window, 'hashchange', handleMaybeUrlChange);
   }
 
   function handleMaybeUrlChange() {
     window.setTimeout(() => {
+      if (!roomRuntime) return;
       if (state.lastPath === location.href) {
         return;
       }
@@ -1077,73 +1114,45 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
     scheduleAttach();
   }
 
-  function nodeIsInHeader(node) {
-    if (!(node instanceof Element)) {
-      return false;
-    }
-    return node.id === 'head-info-vm'
-      || node.id === HOST_ID
-      || Boolean(node.closest('#head-info-vm'));
-  }
-
-  function nodeContainsHeader(node) {
-    return node instanceof Element
-      && Boolean(node.querySelector(`#head-info-vm, #${HOST_ID}`));
-  }
-
-  function mutationsTouchHeader(records) {
-    for (const record of records) {
-      if (nodeIsInHeader(record.target)) {
-        return true;
-      }
-      for (const node of record.addedNodes) {
-        if (nodeIsInHeader(node) || nodeContainsHeader(node)) {
-          return true;
-        }
-      }
-      for (const node of record.removedNodes) {
-        if (nodeIsInHeader(node) || nodeContainsHeader(node)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
   function bindObservers() {
-    const observer = new MutationObserver((records) => {
-      if (!isLiveRoomPage()) {
-        removeHost();
-        return;
-      }
-      const touchesHeader = mutationsTouchHeader(records);
-      if (touchesHeader) {
+    let header = null;
+    const observer = new MutationObserver(() => {
+      if (!isLiveRoomPage()) return;
+      scheduleAttach();
+      if (!state.infoKey && !state.loadingRoomId) scheduleRefresh(250);
+    });
+    function bindHeader() {
+      const next = document.getElementById('head-info-vm');
+      if (next === header) return;
+      observer.disconnect();
+      header = next;
+      if (header) {
+        observer.observe(header, { childList: true, subtree: true });
         scheduleAttach();
       }
-      if (touchesHeader && !state.infoKey && !state.loadingRoomId) {
-        scheduleRefresh(250);
-      }
+    }
+    const guard = new MutationObserver(() => {
+      if (!header?.isConnected) bindHeader();
     });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
+    guard.observe(document.documentElement, { childList: true, subtree: true });
+    roomRuntime.add(() => { guard.disconnect(); observer.disconnect(); });
+    bindHeader();
 
-    window.addEventListener('resize', () => {
+    roomRuntime.listen(window, 'resize', () => {
       if (!isLiveRoomPage()) {
         removeHost();
         return;
       }
       scheduleAttach();
     });
-    document.addEventListener('fullscreenchange', () => {
+    roomRuntime.listen(document, 'fullscreenchange', () => {
       if (!isLiveRoomPage()) {
         removeHost();
         return;
       }
       const host = document.getElementById(HOST_ID);
       if (host) {
-        host.classList.toggle('blive-room-area-badge-hidden', Boolean(document.fullscreenElement));
+        syncHostVisibility(host);
       }
     });
 
@@ -1170,6 +1179,28 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   }
 
   function init() {
+    window.addEventListener('pagehide', stopRoomArea);
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) startRoomArea();
+    });
+    startRoomArea();
+  }
+
+  function stopRoomArea() {
+    roomRuntime?.dispose();
+    roomRuntime = null;
+    window.clearInterval(state.slowTimer);
+    window.clearInterval(state.mountWaitTimer);
+    window.clearTimeout(state.refreshTimer);
+    window.cancelAnimationFrame(state.attachTimer);
+    state.slowTimer = state.mountWaitTimer = state.refreshTimer = state.attachTimer = 0;
+    state.refreshDueAt = 0;
+    resetAreaState();
+  }
+
+  function startRoomArea() {
+    if (roomRuntime || !isLiveRoomPage()) return;
+    roomRuntime = createLifecycle();
     ensureStyle();
     waitForMount();
     attachHost();
@@ -1181,6 +1212,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
       href: location.href
     });
   }
+
 
   init();
 })();

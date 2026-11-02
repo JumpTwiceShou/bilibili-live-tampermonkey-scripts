@@ -10,6 +10,8 @@
 
 如果刚打开页面、刚切换清晰度、播放器重建或长时间没有新媒体样本，脚本会显示 `画面码率: --`，等待新样本后自动恢复。
 
+更换视频节点后会丢弃旧缓冲区的异步回调，避免旧样本混入新的码率窗口；页面后退恢复后会重新采样。
+
 ## 截图
 
 ![视频统计面板画面码率](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/docs/images/video-bitrate-stats.png)

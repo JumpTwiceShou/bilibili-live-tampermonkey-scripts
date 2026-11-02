@@ -6,14 +6,16 @@
 
 | 插件 | 版本 | 功能 | GitHub 安装 | GreasyFork |
 | --- | --- | --- | --- | --- |
-| B站直播礼物面板布局重构 | 1.3.0 | 礼物面板固定在播放器右下角并保持两行高度，支持中文、拼音全拼和首字母实时筛选。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
-| B站直播间标题与分区显示 | 1.1 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581316-bilibili-live-room-area-badge) |
-| B站直播视频统计面板画面码率 | 1.1.0 | 在播放器右键视频统计信息面板的 Decoded Frames 行旁显示估算画面码率。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-video-bitrate-stats.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581368-b站直播视频统计面板画面码率) |
-| B站特殊聚合直播跳转普通播放器 | 1.0.2 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581317-bilibili-live-special-blanc-redirect) |
-| B站特殊聚合页普通直播间布局（保留列表） | 2.2.1 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，列表默认折叠一次，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581318-bilibili-live-special-layout) |
-| B站特殊聚合页普通直播间布局（隐藏列表） | 2.2.1-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581319-bilibili-live-special-layout-no-list) |
+| B站直播礼物面板布局重构 | 1.3.1 | 礼物面板固定在播放器右下角并保持两行高度，支持中文、拼音全拼和首字母实时筛选。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-gift-panel-overlay.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581314-bilibili-live-gift-panel-overlay) |
+| B站直播间标题与分区显示 | 1.1.1 | 在标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-room-area-badge.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581316-bilibili-live-room-area-badge) |
+| B站直播视频统计面板画面码率 | 1.1.1 | 在播放器右键视频统计信息面板的 Decoded Frames 行旁显示估算画面码率。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-video-bitrate-stats.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581368-b站直播视频统计面板画面码率) |
+| B站特殊聚合直播跳转普通播放器 | 1.0.3 | 识别特殊聚合页内嵌的 `/blanc/` 播放器并跳转到普通播放器页面。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-blanc-redirect.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581317-bilibili-live-special-blanc-redirect) |
+| B站特殊聚合页普通直播间布局（保留列表） | 2.2.2 | 特殊聚合页加宽为接近普通直播间的布局，保留聚合列表，列表默认折叠一次，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581318-bilibili-live-special-layout) |
+| B站特殊聚合页普通直播间布局（隐藏列表） | 2.2.2-no-list | 特殊聚合页加宽为接近普通直播间的布局，隐藏聚合列表，并补齐关注侧栏和回到播放器按钮。 | [安装](https://raw.githubusercontent.com/JumpTwiceShou/bilibili-live-tampermonkey-scripts/main/bilibili-live-special-layout-no-list.user.js) | [GreasyFork](https://greasyfork.org/zh-CN/scripts/581319-bilibili-live-special-layout-no-list) |
 
 ## 使用方法
+
+源码维护、生成命令和必要回归检查见 [开发与验证](docs/development.md)。
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或其他用户脚本管理器。
 2. 按上表选择脚本安装。普通直播间可启用礼物面板布局重构、标题分区显示和视频统计面板画面码率。
