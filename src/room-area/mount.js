@@ -56,7 +56,12 @@
       };
     }
 
-    return null;
+    const headerCenter = document.querySelector(HEADER_CENTER_SELECTOR);
+    return headerCenter ? {
+      node: headerCenter.parentElement,
+      type: 'split-header',
+      before: headerCenter
+    } : null;
   }
 
   function findHeaderInsertBefore(mount) {
@@ -134,6 +139,9 @@
 
   function findInsertSlot(mountInfo, host) {
     const mount = mountInfo.node;
+    if (mountInfo.type === 'split-header') {
+      return { parent: mount, before: mountInfo.before };
+    }
     const socialAnchor = findHeaderSocialAnchor(mount, host);
     if (socialAnchor && socialAnchor.parentElement) {
       let before = socialAnchor.nextSibling;
@@ -147,7 +155,7 @@
     }
     return {
       parent: mount,
-      before: mountInfo.type === 'header' ? findHeaderInsertBefore(mount) : null
+      before: findHeaderInsertBefore(mount)
     };
   }
 

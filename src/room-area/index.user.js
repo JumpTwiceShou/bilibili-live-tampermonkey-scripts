@@ -2,7 +2,7 @@
 // @name         Bilibili Live Room Area Badge
 // @name:zh-CN   B站直播间标题与分区显示
 // @namespace    https://live.bilibili.com/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Show the current live room title and area near the room header, with links to the parent and child live area pages.
 // @description:zh-CN 在 B 站直播间标题栏重新显示直播标题、父分区和子分区，并为分区添加跳转链接。
 // @match        https://live.bilibili.com/*
@@ -18,7 +18,7 @@
 
   /* @include ../shared/lifecycle.js */
 
-  const VERSION = '1.1.1';
+  const VERSION = '1.1.2';
   const STYLE_ID = 'blive-room-area-badge-style';
   const HOST_ID = 'blive-room-area-badge-host';
   const API_ROOM_GET_INFO = 'https://api.live.bilibili.com/room/v1/Room/get_info';
@@ -26,6 +26,7 @@
   const API_ROOM_INIT = 'https://api.live.bilibili.com/room/v1/Room/room_init';
   const AREA_PAGE_URL = 'https://live.bilibili.com/p/eden/area-tags';
   const HEADER_MOUNT_SELECTOR = '#head-info-vm .normal-row-ctnr';
+  const HEADER_CENTER_SELECTOR = '#head-info-vm > .header-center';
   const HEADER_RIGHT_MODULES_SELECTOR = '#head-info-vm .right-fixed-modules';
   const SOCIAL_ANCHOR_SELECTORS = [
     '.follow-ctnr',
@@ -108,6 +109,11 @@
   flex: 0 0 auto;
   margin: 0 10px;
   vertical-align: middle;
+}
+
+#${HOST_ID}[data-blive-room-area-badge-mount="split-header"] {
+  flex: 0 1 auto;
+  margin: 0 8px 0 0;
 }
 
 #${HOST_ID}.blive-room-area-badge-hidden {
@@ -193,7 +199,7 @@ html:has(iframe:-webkit-full-screen) #${HOST_ID} {
   function isSpecialTopShell() {
     return window.top === window
       && Boolean(document.querySelector('.live-non-revenue-player'))
-      && !document.querySelector(HEADER_MOUNT_SELECTOR);
+      && !findMount();
   }
 
   function cancelAreaRequest() {

@@ -36,21 +36,29 @@ class Element {
 
 const unrelated = new Element('其他主播的卡片');
 const header = new Element('当前房间标题');
+const entryTitle = new Element('进房卡片中的当前标题');
 const mount = new Element();
 const host = new Element();
 host.parentElement = mount;
 host.nextSibling = null;
 host.className = 'blive-room-area-badge-static blive-room-area-badge-hidden';
 let headerPresent = true;
+let entryTitlePresent = false;
+let splitHeaderCenter = null;
 const roomDoc = {
   documentElement: { dataset: {} },
   title: '文档中的当前标题 - 主播 - 哔哩哔哩直播',
   fullscreenElement: {},
   getElementById: (id) => id === 'blive-room-area-badge-host' ? host : { id },
-  querySelector: (selector) => selector === '#head-info-vm .normal-row-ctnr' ? mount : null,
+  querySelector(selector) {
+    if (selector === '#head-info-vm .normal-row-ctnr') return splitHeaderCenter ? null : mount;
+    if (selector === '#head-info-vm > .header-center') return splitHeaderCenter;
+    return null;
+  },
   querySelectorAll(selector) {
     if (selector.startsWith('.bili-dyn-card-live__title')) return [unrelated];
     if (headerPresent && selector === '#head-info-vm [class*="room-title"]') return [header];
+    if (entryTitlePresent && selector === '#aside-area-vm #chat-history-list .room-entry-card-title') return [entryTitle];
     return [];
   },
 };
@@ -63,6 +71,8 @@ const room = expose('bilibili-live-room-area-badge.user.js', 'findTitleInPage, a
 assert.equal(room.findTitleInPage(), header.textContent, 'unrelated live cards must not override the room header');
 headerPresent = false;
 assert.equal(room.findTitleInPage(), '文档中的当前标题', 'document title is the room-bound fallback');
+entryTitlePresent = true;
+assert.equal(room.findTitleInPage(), entryTitle.textContent, 'the room entry card supplies the title in the split layout');
 room.state.infoKey = 'existing';
 room.state.info = { title: header.textContent };
 room.attachHost();
@@ -70,6 +80,17 @@ assert(host.classes.has('blive-room-area-badge-hidden'), 'reattach preserves ful
 roomDoc.fullscreenElement = null;
 room.attachHost();
 assert(!host.classes.has('blive-room-area-badge-hidden'), 'exit fullscreen restores the badge');
+
+const splitHeader = new Element();
+splitHeaderCenter = new Element();
+splitHeaderCenter.parentElement = splitHeader;
+splitHeader.insertBefore = (node, before) => {
+  node.parentElement = splitHeader;
+  node.nextSibling = before;
+};
+room.attachHost();
+assert.equal(host.parentElement, splitHeader, 'the badge mounts directly in the split header');
+assert.equal(host.nextSibling, splitHeaderCenter, 'the badge sits between the profile and center controls');
 
 const layoutWindow = { localStorage: { getItem: () => null }, location: { search: '' } };
 layoutWindow.top = layoutWindow;

@@ -98,7 +98,7 @@
       '#head-info-vm .bili-dyn-card-live__title',
       '#head-info-vm [class*="room-title"]',
       '#head-info-vm [class*="live-title"]',
-      '#head-info-vm .room-title'
+      '#aside-area-vm #chat-history-list .room-entry-card-title'
     ]);
     if (domTitle) {
       return domTitle;
